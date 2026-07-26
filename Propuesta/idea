@@ -1,1 +1,181 @@
+AgroSmart
+Sistema Inteligente para la Administración de Cultivos
+¿Qué desarrollaremos?
 
+AgroSmart será un sistema que permitirá a un agricultor administrar toda la información de sus cultivos desde un solo lugar.
+
+El usuario podrá registrar los cultivos, controlar el riego, administrar el inventario de insumos, organizar las actividades agrícolas y obtener una estimación de la fecha de cosecha.
+
+El objetivo principal será facilitar la administración de los recursos agrícolas mediante el uso de algoritmos y estructuras de datos.
+
+ ¿Quién usará el sistema?
+
+Principalmente un agricultor o administrador de una finca.
+
+ ¿Qué podrá hacer?
+ Registro de cultivos
+
+Podrá registrar:
+
+Código del cultivo.
+Nombre.
+Tipo de cultivo.
+Fecha de siembra.
+Cantidad sembrada.
+Estado del cultivo.
+Ubicación o parcela.
+
+Ejemplo:
+
+Código: C001
+
+Cultivo: Maíz
+
+Parcela: A
+
+Fecha: 15/08/2026
+
+Estado: En crecimiento
+ Control de riego
+
+El agricultor podrá registrar cuándo regó un cultivo.
+
+Ejemplo:
+
+Cultivo
+
+Fecha
+
+Cantidad de agua
+
+Observaciones
+
+Y el sistema mostrará el historial de riegos.
+
+ Inventario
+
+Controlará los insumos disponibles.
+
+Ejemplo:
+
+Fertilizantes
+Semillas
+Herramientas
+Pesticidas
+
+También podrá indicar cuando algún producto esté por agotarse.
+
+Calendario agrícola
+
+Mostrará actividades pendientes.
+
+Ejemplo:
+
+Próximo riego.
+Próxima fertilización.
+Fecha estimada de cosecha.
+Predicción de cosechas
+
+Según la fecha de siembra y el tipo de cultivo, el sistema estimará cuándo estará listo para cosechar.
+
+Por ejemplo:
+
+Cultivo
+
+Fecha de siembra
+
+Días aproximados
+
+Fecha estimada de cosecha
+ ¿Dónde entran los algoritmos?
+
+Aquí es donde el proyecto se vuelve interesante.
+
+Búsqueda
+
+Buscar un cultivo por:
+
+Nombre.
+Código.
+Tipo.
+Ordenamiento
+
+Ordenar:
+
+Por nombre.
+Por fecha de siembra.
+Por cantidad sembrada.
+Árbol
+
+Clasificar los cultivos.
+
+Ejemplo:
+
+Cultivos
+
+      │
+
+──────────────
+
+Granos     Frutas
+
+  │            │
+
+Maíz      Naranja
+Tabla Hash
+
+Buscar rápidamente un cultivo usando su código.
+
+Grafo
+
+Representar las parcelas de la finca y calcular la mejor ruta para recorrerlas.
+
+Ejemplo:
+
+Parcela A ---- Parcela B
+
+      \          /
+
+       \        /
+
+      Parcela C
+
+Con Dijkstra el sistema puede encontrar el recorrido más corto.
+
+Algoritmo Voraz
+
+Si hay poca agua disponible, el sistema puede asignarla primero a los cultivos que más la necesitan, aprovechando mejor el recurso.
+
+¿Cómo me imagino la pantalla principal?
+=====================================
+       AGROSMART
+Sistema Inteligente para Agricultura
+=====================================
+
+1. Registrar cultivo
+
+2. Control de riego
+
+3. Inventario
+
+4. Calendario agrícola
+
+5. Predicción de cosechas
+
+6. Buscar cultivo
+
+7. Reportes
+
+8. Salir
+
+Cada opción llevaría al usuario a una función diferente.
+
+¿Qué hará especial a AgroSmart?
+
+No será solo un programa para guardar datos. También ayudará a tomar decisiones sencillas usando los algoritmos que les pide el curso. Por ejemplo:
+
+Encontrar rápidamente un cultivo.
+Ordenar la información para consultarla mejor.
+Organizar las parcelas.
+Planificar las actividades agrícolas.
+Aprovechar mejor el agua cuando sea un recurso limitado.
