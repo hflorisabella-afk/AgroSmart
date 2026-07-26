@@ -1,3 +1,16 @@
-# Propuesta del Proyecto
+Propuesta del Proyecto
 
-Aquí se almacenará la propuesta del Sistema Inteligente para Agricultura.
+ Nombre del proyecto
+AgroSmart - Sistema Inteligente para Agricultura
+
+ Integrantes
+- Flor Hernández
+- Kímberly Pixtun
+- Kenneth Garcia
+- Dilan López
+- Marcos Soto
+
+ Descripción
+En esta carpeta se encuentra la propuesta del proyecto AgroSmart, organizada por secciones asignadas a cada integrante del equipo.
+
+ 
