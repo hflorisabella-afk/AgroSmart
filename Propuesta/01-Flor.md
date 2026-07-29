@@ -5,7 +5,7 @@ Facultad de Ingeniería en Sistemas y Ciencias de la Computación
 
 Curso: Algoritmos
 
-Ingeníera: Evelin Marisol Juárez Barrientos
+Inge.: Evelin Marisol Juárez Barrientos
 
 Proyecto Final
 
