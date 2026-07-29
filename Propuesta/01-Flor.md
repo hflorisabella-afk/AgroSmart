@@ -10,6 +10,7 @@ Ingeníera: Evelin Marisol Juárez Barrientos
 Proyecto Final
 
 🌿 AgroSmart
+
 Sistema Inteligente para la Administración de Cultivos
 
 Integrantes
