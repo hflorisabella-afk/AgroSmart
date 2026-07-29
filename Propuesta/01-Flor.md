@@ -5,11 +5,11 @@ Facultad de Ingeniería en Sistemas y Ciencias de la Computación
 
 Curso: Algoritmos
 
-Catedrática: Evelin Marisol Juárez Barrientos
+Ingeníera: Evelin Marisol Juárez Barrientos
 
 Proyecto Final
 
-🌱 AgroSmart
+🌿 AgroSmart
 Sistema Inteligente para la Administración de Cultivos
 
 Integrantes
