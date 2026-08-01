@@ -12,8 +12,7 @@ Este módulo permite almacenar y administrar toda la información relacionada co
 Funciones principales
 - Registrar nuevos cultivos.
 - Editar o actualizar la información registrada.
-- Eliminar registros que ya no sean necesarios.
-- Registrar el nombre del cultivo.
+- Eliminar registros de cultivos inecesarios.
 - Registrar la variedad o especie.
 - Registrar la fecha de siembra.
 - Registrar la fecha estimada de cosecha.
@@ -37,23 +36,23 @@ Funciones principales
 Este módulo organiza todas las actividades agrícolas mediante un calendario que permite planificar y controlar las tareas importantes durante el ciclo de producción y tiempo especifico para las cosechas.
 
 Funciones principales
--Programar fechas de siembra.
--Programar fertilizaciones y fumigaciones.
--Programar podas y cosechas.
--Registrar actividades realizadas.
--Mostrar actividades pendientes.
--Enviar recordatorios de eventos importantes.
+- Programar fechas de siembra.
+- Programar fertilizaciones y fumigaciones.
+- Programar podas y cosechas.
+- Registrar actividades realizadas.
+- Mostrar actividades pendientes.
+- Enviar recordatorios de eventos importantes.
 
 ## Inventario
 Este módulo administra los recursos e insumos utilizados en la finca, permitiendo controlar la existencia de herramientas, semillas, fertilizantes y otros materiales.
 
 Funciones principales
--Registrar herramientas e insumos.
--Registrar entradas y salidas de productos.
--Consultar existencias disponibles.
--Actualizar automáticamente las cantidades del inventario.
--Generar alertas cuando un producto esté próximo a agotarse.
--Elaborar reportes del inventario.
+- Registrar herramientas e insumos.
+- Registrar entradas y salidas de productos.
+- Consultar existencias disponibles.
+- Actualizar automáticamente las cantidades del inventario.
+- Generar alertas cuando un producto esté próximo a agotarse.
+- Elaborar reportes del inventario.
 ## Predicción de cosechas
 
 # Requisitos funcionales
