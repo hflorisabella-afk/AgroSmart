@@ -12,7 +12,7 @@ Este módulo permite almacenar y administrar toda la información relacionada co
 Funciones principales
 - Registrar nuevos cultivos.
 - Editar o actualizar la información registrada.
-- Eliminar registros de cultivos inecesarios.
+- Eliminar registros de cultivos innecesarios.
 - Registrar la variedad o especie.
 - Registrar la fecha de siembra.
 - Registrar la fecha estimada de cosecha.
