@@ -66,14 +66,11 @@ Funciones principales
 - Ayudar en la planificación de ventas y distribución de la producción.
 
 # Requisitos funcionales
-Los requisitos funcionales describen las funciones que el sistema debe realizar para cumplir con las necesidades de los usuarios y garantizar una correcta gestión de las actividades agrícolas.
+Los requisitos funcionales definen las principales funciones que el sistema debe cumplir para apoyar la gestión agrícola. El sistema debe permitir registrar y administrar usuarios, gestionar la información de los cultivos, controlar los riegos realizados y programados, así como organizar las actividades agrícolas mediante un calendario que facilite el seguimiento de las tareas de siembra, fertilización, fumigación y cosecha.
 
-El sistema debe permitir el registro y administración de usuarios para controlar el acceso a la plataforma. Asimismo, debe facilitar el registro, consulta, modificación y eliminación de la información de los cultivos, incluyendo datos como el tipo de cultivo, fechas de siembra y cosecha, ubicación y estado actual.
-
-También debe ofrecer un módulo para el control de riego, permitiendo registrar los riegos realizados, programar nuevos riegos y consultar el historial correspondiente. En el calendario agrícola, el sistema debe permitir organizar y visualizar las actividades relacionadas con la siembra, fertilización, fumigación y cosecha.
-
-En cuanto al inventario, el sistema debe administrar los insumos, herramientas y materiales agrícolas, registrando las entradas y salidas de productos, además de mantener actualizada la cantidad disponible de cada uno.
-
-Finalmente, el sistema debe contar con un módulo de predicción de cosechas que permita estimar la fecha de recolección y la producción esperada con base en la información registrada. Además, deberá generar reportes que faciliten el seguimiento de los cultivos, el inventario, los riegos y la producción agrícola.
+Además, el sistema debe administrar el inventario de herramientas e insumos, registrando las entradas y salidas de productos y manteniendo actualizadas las existencias. También debe generar predicciones sobre la producción y la fecha estimada de cosecha, así como elaborar reportes que permitan al usuario consultar y analizar la información registrada para mejorar la toma de decisiones.
 
 # Requisitos no funcionales
+Los requisitos no funcionales establecen las características de calidad que debe cumplir el sistema para garantizar un funcionamiento eficiente, seguro y confiable. El sistema debe contar con una interfaz fácil de usar, ofrecer un buen rendimiento en las consultas y registros, y proteger la información mediante mecanismos de autenticación y control de acceso.
+
+Además, debe ser compatible con los principales navegadores y sistemas operativos, mantener la integridad de los datos almacenados y permitir la realización de copias de seguridad para evitar la pérdida de información. También debe ser escalable y fácil de mantener, permitiendo futuras actualizaciones y mejoras sin afectar su funcionamiento.
