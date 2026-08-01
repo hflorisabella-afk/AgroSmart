@@ -24,13 +24,14 @@ Funciones principales
 Este módulo permite gestionar el suministro de agua para los cultivos, ayudando al agricultor a programar y controlar los riegos para mejorar la producción y evitar el desperdicio de agua.
 
 Funciones principales
--Registrar los riegos realizados.
--Programar fechas y horarios de riego.
--Registrar la cantidad de agua utilizada.
--Registrar el método de riego utilizado.
--Consultar el historial de riegos.
--Generar recordatorios de riego.
--Mostrar reportes del consumo de agua por cultivo.
+- Registrar cada riego realizado.
+- Programar fechas y horarios de riego.
+- Registrar la cantidad de agua utilizada.
+- Registrar el método de riego utilizado (manual, aspersión o goteo).
+- Consultar el historial completo de riegos.
+- Generar recordatorios para los próximos riegos.
+- Mostrar los cultivos que requieren riego.
+- Elaborar reportes sobre el consumo de agua.
 
 ## Calendario agrícola
 Este módulo organiza todas las actividades agrícolas mediante un calendario que permite planificar y controlar las tareas importantes durante el ciclo de producción y tiempo especifico para las cosechas.
