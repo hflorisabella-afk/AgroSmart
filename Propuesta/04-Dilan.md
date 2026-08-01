@@ -53,8 +53,27 @@ Funciones principales
 - Actualizar automáticamente las cantidades del inventario.
 - Generar alertas cuando un producto esté próximo a agotarse.
 - Elaborar reportes del inventario.
+- 
 ## Predicción de cosechas
+Este módulo permite realizar estimaciones sobre la producción agrícola utilizando la información registrada de los cultivos y su desarrollo.
+
+Funciones principales
+- Estimar la fecha probable de cosecha.
+- Mostrar el rendimiento estimado por cultivo.
+- Comparar cosechas actuales con cosechas anteriores.
+- Generar estadísticas de producción.
+- Elaborar reportes de rendimiento agrícola.
+- Ayudar en la planificación de ventas y distribución de la producción.
 
 # Requisitos funcionales
+Los requisitos funcionales describen las funciones que el sistema debe realizar para cumplir con las necesidades de los usuarios y garantizar una correcta gestión de las actividades agrícolas.
+
+El sistema debe permitir el registro y administración de usuarios para controlar el acceso a la plataforma. Asimismo, debe facilitar el registro, consulta, modificación y eliminación de la información de los cultivos, incluyendo datos como el tipo de cultivo, fechas de siembra y cosecha, ubicación y estado actual.
+
+También debe ofrecer un módulo para el control de riego, permitiendo registrar los riegos realizados, programar nuevos riegos y consultar el historial correspondiente. En el calendario agrícola, el sistema debe permitir organizar y visualizar las actividades relacionadas con la siembra, fertilización, fumigación y cosecha.
+
+En cuanto al inventario, el sistema debe administrar los insumos, herramientas y materiales agrícolas, registrando las entradas y salidas de productos, además de mantener actualizada la cantidad disponible de cada uno.
+
+Finalmente, el sistema debe contar con un módulo de predicción de cosechas que permita estimar la fecha de recolección y la producción esperada con base en la información registrada. Además, deberá generar reportes que faciliten el seguimiento de los cultivos, el inventario, los riegos y la producción agrícola.
 
 # Requisitos no funcionales
