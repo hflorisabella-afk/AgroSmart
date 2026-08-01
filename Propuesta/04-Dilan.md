@@ -53,7 +53,7 @@ Funciones principales
 - Actualizar automáticamente las cantidades del inventario.
 - Generar alertas cuando un producto esté próximo a agotarse.
 - Elaborar reportes del inventario.
-- 
+
 ## Predicción de cosechas
 Este módulo permite realizar estimaciones sobre la producción agrícola utilizando la información registrada de los cultivos y su desarrollo.
 
