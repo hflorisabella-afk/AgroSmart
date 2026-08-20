@@ -1,6 +1,7 @@
 # gestor_cultivos.py
 # Este archivo se encarga de administrar TODOS los cultivos juntos:
-
+# agregar nuevos, ver la lista completa, etc.
+# cultivo.py define "qué es un cultivo", este archivo dice "qué hacer con varios cultivos".
 
 from cultivo import Cultivo
 
@@ -8,11 +9,20 @@ class GestorCultivos:
     def __init__(self):
         # Esta lista vacía es donde se van a ir guardando todos los cultivos
         self.lista_cultivos = []
+        # Este contador lleva la cuenta de cuántos cultivos se han creado,
+        # para poder generar el código automático (CULT001, CULT002, ...)
+        self.contador = 0
+
+    def generar_codigo(self):
+        # Genera un código único automáticamente, así el agricultor no tiene que inventarlo.
+        self.contador += 1
+        # :03d hace que el número siempre tenga 3 dígitos, ej: 1 -> "001", 12 -> "012"
+        return f"CULT{self.contador:03d}"
 
     def agregar_cultivo(self, cultivo):
         # Recibe un objeto Cultivo (ya creado) y lo agrega a la lista
         self.lista_cultivos.append(cultivo)
-        print(f"Cultivo agregado: {cultivo.nombre}")
+        print(f"Cultivo agregado: {cultivo.nombre} (código: {cultivo.codigo})")
 
     def mostrar_todos(self):
         # Imprime todos los cultivos que hay hasta ahora
@@ -37,26 +47,30 @@ class GestorCultivos:
         return None  # si terminó el for y no encontró nada, devuelve None (nada)
 
 
-# Zona de prueba
+# --- Zona de prueba ---
 if __name__ == "__main__":
     gestor = GestorCultivos()
 
-    # Creamos dos cultivos de prueba
+    # Creamos dos cultivos de prueba (ya sin escribir el código a mano)
     cultivo1 = Cultivo(
-        codigo="CULT001",
+        codigo=gestor.generar_codigo(),
         nombre="Maíz parcela 3",
         tipo="Maíz",
         tipo_tierra="Arcillosa",
         localidad="Chimaltenango",
+        numero_parcela="3",
+        tamano_parcela=2.5,
         fecha_siembra="2026-08-18"
     )
 
     cultivo2 = Cultivo(
-        codigo="CULT002",
+        codigo=gestor.generar_codigo(),
         nombre="Frijol parcela 1",
         tipo="Frijol",
         tipo_tierra="Arenosa",
         localidad="Chimaltenango",
+        numero_parcela="1",
+        tamano_parcela=1.8,
         fecha_siembra="2026-08-19"
     )
 
