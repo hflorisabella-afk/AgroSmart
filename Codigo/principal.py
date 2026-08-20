@@ -1,10 +1,8 @@
 # principal.py
 # Este archivo es un "menú de texto" temporal.
-# Sirve para probar que toda la lógica funciona ANTES de hacer la pantalla bonita con Kivy.
+# Sirve para probar que toda la lógica funciona ANTES de hacer la pantalla
 # El agricultor (por ahora, nosotros probando) escribe sus datos aquí, en la terminal.
-#
-# Este archivo debe estar en Codigo/, al mismo nivel que la carpeta modelos/
-# (NO adentro de modelos/, sino al lado).
+
 
 import sys
 import os
