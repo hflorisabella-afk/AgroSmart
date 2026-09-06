@@ -22,8 +22,6 @@ class Cultivo:
 
 
 # --- Zona de prueba ---
-# Este pedazo de abajo solo sirve para comprobar que la clase funciona.
-# Cuando ya esté conectado con las pantallas, esto se puede borrar.
 if __name__ == "__main__":
     cultivo1 = Cultivo(
         codigo="CULT001",

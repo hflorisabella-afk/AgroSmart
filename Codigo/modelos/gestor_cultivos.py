@@ -1,97 +1,87 @@
 # gestor_cultivos.py
 # Este archivo se encarga de administrar TODOS los cultivos juntos:
-# agregar nuevos, ver la lista completa, etc.
+# agregar nuevos, ver la lista completa, buscar, y ahora también
+# GUARDAR y CARGAR los datos en un archivo, para que no se pierdan al cerrar el programa.
 # cultivo.py define "qué es un cultivo", este archivo dice "qué hacer con varios cultivos".
 
+import json  # nos sirve para guardar y leer datos en un archivo de texto ordenado
+import os
 from cultivo import Cultivo
+
+# Este es el nombre del archivo donde se van a guardar todos los cultivos.
+# Se va a crear automáticamente junto a este mismo archivo (dentro de modelos/).
+ARCHIVO_DATOS = os.path.join(os.path.dirname(__file__), "datos_cultivos.json")
+
 
 class GestorCultivos:
     def __init__(self):
-        # Esta lista vacía es donde se van a ir guardando todos los cultivos
         self.lista_cultivos = []
-        # Este contador lleva la cuenta de cuántos cultivos se han creado,
-        # para poder generar el código automático (CULT001, CULT002, ...)
         self.contador = 0
+        self.cargar_datos()
 
     def generar_codigo(self):
-        # Genera un código único automáticamente, así el agricultor no tiene que inventarlo.
         self.contador += 1
-        # :03d hace que el número siempre tenga 3 dígitos, ej: 1 -> "001", 12 -> "012"
         return f"CULT{self.contador:03d}"
 
     def agregar_cultivo(self, cultivo):
-        # Recibe un objeto Cultivo (ya creado) y lo agrega a la lista
         self.lista_cultivos.append(cultivo)
         print(f"Cultivo agregado: {cultivo.nombre} (código: {cultivo.codigo})")
+        self.guardar_datos()
 
     def mostrar_todos(self):
-        # Imprime todos los cultivos que hay hasta ahora
         if len(self.lista_cultivos) == 0:
             print("No hay cultivos registrados todavía.")
             return
 
         print("--- Lista de cultivos ---")
         for cultivo in self.lista_cultivos:
-            print(cultivo)  # esto usa el __str__ que ya definimos en Cultivo
+            print(cultivo)
 
     def buscar_por_nombre(self, nombre_buscado):
-        # --- BÚSQUEDA LINEAL ---
-        # Esto es un algoritmo de búsqueda: revisa la lista UNO POR UNO
-        # hasta encontrar un cultivo cuyo nombre coincida (o hasta terminar la lista).
-        # Complejidad: O(n) -> en el peor caso revisa TODOS los cultivos.
         for cultivo in self.lista_cultivos:
             if cultivo.nombre.lower() == nombre_buscado.lower():
-                # .lower() convierte todo a minúsculas, así "Maíz" y "maíz" se consideran iguales
-                return cultivo  # lo encontramos, lo devolvemos de una vez
+                return cultivo
+        return None
 
-        return None  # si terminó el for y no encontró nada, devuelve None (nada)
+    def guardar_datos(self):
+        lista_como_diccionarios = [cultivo.__dict__ for cultivo in self.lista_cultivos]
+        with open(ARCHIVO_DATOS, "w", encoding="utf-8") as archivo:
+            json.dump(lista_como_diccionarios, archivo, ensure_ascii=False, indent=2)
+
+    def cargar_datos(self):
+        if not os.path.exists(ARCHIVO_DATOS):
+            return
+
+        with open(ARCHIVO_DATOS, "r", encoding="utf-8") as archivo:
+            lista_como_diccionarios = json.load(archivo)
+
+        for datos in lista_como_diccionarios:
+            cultivo = Cultivo(
+                codigo=datos["codigo"],
+                nombre=datos["nombre"],
+                tipo=datos["tipo"],
+                tipo_tierra=datos["tipo_tierra"],
+                localidad=datos["localidad"],
+                numero_parcela=datos["numero_parcela"],
+                tamano_parcela=datos["tamano_parcela"],
+                fecha_siembra=datos["fecha_siembra"],
+                estado=datos["estado"]
+            )
+            self.lista_cultivos.append(cultivo)
+
+        self.contador = len(self.lista_cultivos)
 
 
 # --- Zona de prueba ---
 if __name__ == "__main__":
     gestor = GestorCultivos()
 
-    # Creamos dos cultivos de prueba (ya sin escribir el código a mano)
-    cultivo1 = Cultivo(
-        codigo=gestor.generar_codigo(),
-        nombre="Maíz parcela 3",
-        tipo="Maíz",
-        tipo_tierra="Arcillosa",
-        localidad="Chimaltenango",
-        numero_parcela="3",
-        tamano_parcela=2.5,
-        fecha_siembra="2026-08-18"
-    )
-
-    cultivo2 = Cultivo(
-        codigo=gestor.generar_codigo(),
-        nombre="Frijol parcela 1",
-        tipo="Frijol",
-        tipo_tierra="Arenosa",
-        localidad="Chimaltenango",
-        numero_parcela="1",
-        tamano_parcela=1.8,
-        fecha_siembra="2026-08-19"
-    )
-
-    # Los agregamos al gestor
-    gestor.agregar_cultivo(cultivo1)
-    gestor.agregar_cultivo(cultivo2)
-
-    # Mostramos la lista completa
+    print(f"Cultivos ya cargados desde el archivo: {len(gestor.lista_cultivos)}")
     gestor.mostrar_todos()
 
-    # --- Probamos la búsqueda ---
     print("\nBuscando 'Frijol parcela 1'...")
     resultado = gestor.buscar_por_nombre("Frijol parcela 1")
     if resultado:
         print(f"¡Encontrado! {resultado}")
-    else:
-        print("No se encontró ese cultivo.")
-
-    print("\nBuscando 'Tomate parcela 5' (que no existe)...")
-    resultado2 = gestor.buscar_por_nombre("Tomate parcela 5")
-    if resultado2:
-        print(f"¡Encontrado! {resultado2}")
     else:
         print("No se encontró ese cultivo.")
