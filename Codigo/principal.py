@@ -76,15 +76,38 @@ def buscar_cultivo():
         print("No se encontró ningún cultivo con ese nombre.")
 
 
+def buscar_cultivo_por_codigo():
+    print("\n--- Buscar cultivo por código ---")
+    codigo_buscado = input("Escribe el código del cultivo (ej. CULT001): ").strip()
+    resultado = gestor.buscar_por_codigo_hash(codigo_buscado)
+    if resultado:
+        print(f"¡Encontrado! {resultado}")
+    else:
+        print("No se encontró ningún cultivo con ese código.")
+
+
+def buscar_cultivo_binaria():
+    print("\n--- Buscar cultivo por nombre (búsqueda binaria) ---")
+    nombre_buscado = input("Escribe el nombre exacto del cultivo a buscar: ")
+    resultado = gestor.buscar_por_nombre_binaria(nombre_buscado)
+    if resultado:
+        print(f"¡Encontrado! {resultado}")
+    else:
+        print("No se encontró ningún cultivo con ese nombre.")
+
+
 def mostrar_menu():
     while True:
         print("\n===== AGROSMART - Registro de cultivos =====")
         print("1. Registrar un cultivo nuevo")
         print("2. Ver todos los cultivos")
-        print("3. Buscar un cultivo por nombre")
-        print("4. Salir")
+        print("3. Buscar un cultivo por nombre (búsqueda lineal)")
+        print("4. Ordenar cultivos por fecha de siembra")
+        print("5. Buscar un cultivo por código (búsqueda rápida)")
+        print("6. Buscar un cultivo por nombre (búsqueda binaria)")
+        print("7. Salir")
 
-        opcion = input("Elige una opción (1-4): ")
+        opcion = input("Elige una opción (1-7): ")
 
         if opcion == "1":
             registrar_cultivo()
@@ -93,6 +116,14 @@ def mostrar_menu():
         elif opcion == "3":
             buscar_cultivo()
         elif opcion == "4":
+            gestor.ordenar_por_fecha_siembra()
+            print("\n✅ Cultivos ordenados por fecha de siembra (del más antiguo al más reciente):")
+            gestor.mostrar_todos()
+        elif opcion == "5":
+            buscar_cultivo_por_codigo()
+        elif opcion == "6":
+            buscar_cultivo_binaria()
+        elif opcion == "7":
             print("¡Hasta luego! 🌱")
             break
         else:
