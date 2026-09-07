@@ -174,7 +174,16 @@ class GestorCultivos:
             self.lista_cultivos.append(cultivo)
             self.tabla_hash_codigos.insertar(cultivo.codigo, cultivo)  # también lo agregamos a la tabla hash
 
-        self.contador = len(self.lista_cultivos)
+        # El contador se calcula según el NÚMERO más alto que ya se haya usado,
+        # no según cuántos cultivos hay ahora. Esto evita que se repita un código
+        # si alguna vez se elimina un cultivo (ej. si se borra CULT002 y solo queda
+        # CULT001, el próximo código debe ser CULT003, no CULT002 de nuevo).
+        numero_mas_alto = 0
+        for cultivo in self.lista_cultivos:
+            numero = int(cultivo.codigo.replace("CULT", ""))
+            if numero > numero_mas_alto:
+                numero_mas_alto = numero
+        self.contador = numero_mas_alto
 
 
 # --- Zona de prueba ---
