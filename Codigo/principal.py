@@ -14,7 +14,7 @@ def pedir_texto_obligatorio(mensaje):
     while True:
         valor = input(mensaje).strip()
         if valor == "":
-            print("⚠️  Este dato es obligatorio, no puede quedar vacío. Intenta de nuevo.")
+            print(" Este dato es obligatorio, no puede quedar vacío. Intenta de nuevo.")
         else:
             return valor
 
@@ -26,7 +26,7 @@ def pedir_fecha_valida(mensaje):
             datetime.strptime(valor, "%Y-%m-%d")
             return valor
         except ValueError:
-            print("⚠️  Fecha inválida. Debe tener el formato AAAA-MM-DD, ejemplo: 2026-08-19. Intenta de nuevo.")
+            print("  Fecha inválida. Debe tener el formato AAAA-MM-DD, ejemplo: 2026-08-19. Intenta de nuevo.")
 
 
 def pedir_numero_positivo(mensaje):
@@ -35,11 +35,11 @@ def pedir_numero_positivo(mensaje):
         try:
             numero = float(valor)
             if numero <= 0:
-                print("⚠️  El tamaño debe ser mayor a 0. Intenta de nuevo.")
+                print("️  El tamaño debe ser mayor a 0. Intenta de nuevo.")
             else:
                 return numero
         except ValueError:
-            print("⚠️  Eso no es un número válido. Escribe solo el número, ejemplo: 2.5. Intenta de nuevo.")
+            print("  Eso no es un número válido. Escribe solo el número, ejemplo: 2.5. Intenta de nuevo.")
 
 
 def registrar_cultivo():
@@ -117,14 +117,14 @@ def mostrar_menu():
             buscar_cultivo()
         elif opcion == "4":
             gestor.ordenar_por_fecha_siembra()
-            print("\n✅ Cultivos ordenados por fecha de siembra (del más antiguo al más reciente):")
+            print("\n Cultivos ordenados por fecha de siembra (del más antiguo al más reciente):")
             gestor.mostrar_todos()
         elif opcion == "5":
             buscar_cultivo_por_codigo()
         elif opcion == "6":
             buscar_cultivo_binaria()
         elif opcion == "7":
-            print("¡Hasta luego! 🌱")
+            print("¡Hasta luego! ")
             break
         else:
             print("Opción no válida, intenta de nuevo.")

@@ -1,5 +1,5 @@
 # gestor_cultivos.py
-# Este archivo se encarga de administrar TODOS los cultivos juntos:
+# Este archivo se encarga de administrar todos los cultivos juntos:
 # agregar nuevos, ver la lista completa, buscar, y ahora también
 # GUARDAR y CARGAR los datos en un archivo, para que no se pierdan al cerrar el programa.
 # cultivo.py define "qué es un cultivo", este archivo dice "qué hacer con varios cultivos".
