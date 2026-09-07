@@ -1,5 +1,5 @@
 # gestor_cultivos.py
-# Este archivo se encarga de administrar todos los cultivos juntos:
+# Este archivo se encarga de administrar TODOS los cultivos juntos:
 # agregar nuevos, ver la lista completa, buscar, y ahora también
 # GUARDAR y CARGAR los datos en un archivo, para que no se pierdan al cerrar el programa.
 # cultivo.py define "qué es un cultivo", este archivo dice "qué hacer con varios cultivos".
@@ -42,6 +42,20 @@ class GestorCultivos:
         self.tabla_hash_codigos.insertar(cultivo.codigo, cultivo)
         print(f"Cultivo agregado: {cultivo.nombre} (código: {cultivo.codigo})")
         self.guardar_datos()
+
+    def eliminar_cultivo(self, codigo_a_eliminar):
+        # Busca el cultivo por su código (usando la tabla hash, que es instantáneo)
+        cultivo_encontrado = self.tabla_hash_codigos.buscar(codigo_a_eliminar)
+
+        if cultivo_encontrado is None:
+            return False  # no existe ese código, no hay nada que eliminar
+
+        # Lo quitamos de la lista principal
+        self.lista_cultivos.remove(cultivo_encontrado)
+        # También lo quitamos de la tabla hash, insertando un valor vacío en su lugar
+        self.tabla_hash_codigos.insertar(codigo_a_eliminar, None)
+        self.guardar_datos()
+        return True  # se eliminó correctamente
 
     def mostrar_todos(self):
         if len(self.lista_cultivos) == 0:
