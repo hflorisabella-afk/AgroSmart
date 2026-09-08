@@ -223,5 +223,4 @@ if __name__ == "__main__":
     print("--- Pronostico de 5 dias ---")
     pronostico = obtener_pronostico_dias(localidad, dias=5)
     if pronostico:
-
-print(generar_pronostico(pronostico))
+        print(generar_pronostico(pronostico))
