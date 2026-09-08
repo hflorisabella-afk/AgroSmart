@@ -1,6 +1,7 @@
 # clima.py
 # Modulo de Clima y Alertas - AgroSmart
 # Usa la API gratuita de Open-Meteo (no requiere API key).
+# Instalar antes: pip install requests
 
 import requests
 import time
