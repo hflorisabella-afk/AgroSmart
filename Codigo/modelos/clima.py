@@ -9,10 +9,10 @@ import time
 
 class Clima:
     def __init__(self, localidad, temperatura, probabilidad_lluvia, descripcion=""):
-        self.localidad = localidad                        # ej: "Chimaltenango"
-        self.temperatura = temperatura                     # ej: 28 (en grados Celsius)
-        self.probabilidad_lluvia = probabilidad_lluvia     # ej: 70 (en porcentaje)
-        self.descripcion = descripcion                     # ej: "Parcialmente nublado"
+        self.localidad = localidad  # ej: "Chimaltenango"
+        self.temperatura = temperatura  # ej: 28 (en grados Celsius)
+        self.probabilidad_lluvia = probabilidad_lluvia  # ej: 70 (en porcentaje)
+        self.descripcion = descripcion  # ej: "Parcialmente nublado"
 
     def generar_alerta(self):
         # Esta funcion revisa los datos y decide si hay que mostrar una alerta.
@@ -223,4 +223,5 @@ if __name__ == "__main__":
     print("--- Pronostico de 5 dias ---")
     pronostico = obtener_pronostico_dias(localidad, dias=5)
     if pronostico:
-        print(generar_pronostico(pronostico))
+
+print(generar_pronostico(pronostico))
