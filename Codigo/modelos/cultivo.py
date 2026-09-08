@@ -1,6 +1,6 @@
 # cultivo.py
 # Este archivo define qué es un "Cultivo" dentro de AgroSmart.
-# Aquí NO hacemos pantallas ni preguntamos nada al usuario,
+# Aquí NO se hace pantallas ni preguntamos nada al usuario,
 # solo definimos la "forma" que va a tener un cultivo en el sistema.
 
 class Cultivo:
@@ -22,8 +22,6 @@ class Cultivo:
 
 
 # --- Zona de prueba ---
-# Este pedazo de abajo solo sirve para comprobar que la clase funciona.
-# Cuando ya esté conectado con las pantallas, esto se puede borrar.
 if __name__ == "__main__":
     cultivo1 = Cultivo(
         codigo="CULT001",
