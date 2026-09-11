@@ -76,6 +76,24 @@ class GestorCultivos:
                 return cultivo
         return None
 
+    def buscar_coincidencias(self, texto_buscado):
+        # Busca TODOS los cultivos donde el texto aparezca en el nombre, el tipo
+        # o la localidad (no necesita ser exacto, ej. "parcela 8" o "maíz" encuentran
+        # cualquier cultivo que tenga esas palabras en alguno de esos campos).
+        # A diferencia de buscar_por_nombre, esta función devuelve una LISTA
+        # con todas las coincidencias, no solo una.
+        texto_buscado = texto_buscado.lower().strip()
+        resultados = []
+
+        for cultivo in self.lista_cultivos:
+            if (texto_buscado in cultivo.nombre.lower()
+                    or texto_buscado in cultivo.tipo.lower()
+                    or texto_buscado in cultivo.localidad.lower()
+                    or texto_buscado in str(cultivo.numero_parcela).lower()):
+                resultados.append(cultivo)
+
+        return resultados
+
     def buscar_por_codigo_hash(self, codigo_buscado):
         # --- BÚSQUEDA POR TABLA HASH ---
         # A diferencia de la búsqueda lineal, aquí NO recorremos nada:
