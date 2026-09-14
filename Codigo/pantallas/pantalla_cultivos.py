@@ -2,10 +2,6 @@
 # Pantalla visual de AgroSmart para el módulo de Registro de Cultivos.
 # Permite: registrar, buscar (por nombre, tipo o parcela), seleccionar un
 # resultado para editarlo o eliminarlo, y ordenar por fecha de siembra.
-#
-# Toda la lógica "de fondo" (guardar, validar, etc.) vive en
-# modelos/cultivo.py y modelos/gestor_cultivos.py — aquí solo conectamos
-# esa lógica con botones y cajas de texto en pantalla.
 
 import sys
 import os
@@ -25,12 +21,12 @@ from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 
-# ================= COLORES DEL TEMA (verde agrícola) =================
-COLOR_FONDO = (0.06, 0.1, 0.08, 1)          # verde muy oscuro, casi negro
-COLOR_VERDE_PRINCIPAL = (0.29, 0.49, 0.36, 1)  # verde medio, para botones
-COLOR_VERDE_CLARO = (0.65, 0.85, 0.6, 1)    # verde clarito, para títulos y textos destacados
-COLOR_TEXTO_CLARO = (0.92, 0.95, 0.9, 1)    # casi blanco con tinte verde, para texto normal
-COLOR_CAJA_TEXTO = (0.95, 0.97, 0.94, 1)    # crema clarito, fondo de las cajas de texto
+#colores
+COLOR_FONDO = (0.06, 0.1, 0.08, 1)
+COLOR_VERDE_PRINCIPAL = (0.29, 0.49, 0.36, 1)
+COLOR_VERDE_CLARO = (0.65, 0.85, 0.6, 1)
+COLOR_TEXTO_CLARO = (0.92, 0.95, 0.9, 1)
+COLOR_CAJA_TEXTO = (0.95, 0.97, 0.94, 1)
 COLOR_ERROR = (1, 0.55, 0.5, 1)
 COLOR_EXITO = (0.55, 0.9, 0.5, 1)
 COLOR_INFO = (0.6, 0.8, 0.9, 1)
@@ -94,17 +90,17 @@ class PantallaCultivos(ScrollView):
         contenido.bind(minimum_height=contenido.setter("height"))
         self.add_widget(contenido)
 
-        # --- Título ---
+        # titulo
         titulo = Label(text="AgroSmart - Registro de Cultivos", font_size=24, bold=True,
                         size_hint_y=None, height=45, color=COLOR_VERDE_CLARO)
         contenido.add_widget(titulo)
 
-        # --- Aviso de modo edición (solo se ve cuando se está editando algo) ---
+        #  modo edición
         self.aviso_edicion = Label(text="", size_hint_y=None, height=25, font_size=14,
                                     color=COLOR_INFO, bold=True)
         contenido.add_widget(self.aviso_edicion)
 
-        # --- Campos del formulario ---
+        # formulario
         fila, self.campo_nombre = fila_con_etiqueta("Nombre del cultivo:", "ej: Maíz parcela 5")
         contenido.add_widget(fila)
         fila, self.campo_tipo = fila_con_etiqueta("Tipo de cultivo:", "ej: Maíz, Frijol, Café")
@@ -120,7 +116,7 @@ class PantallaCultivos(ScrollView):
         fila, self.campo_fecha = fila_con_etiqueta("Fecha de siembra (AAAA-MM-DD):", "ej: 2026-08-19")
         contenido.add_widget(fila)
 
-        # --- Botones de Registrar/Guardar y Cancelar edición, en la misma fila ---
+        #  Botones de Registrar/Guardar y Cancelar edición, en la misma fila
         fila_acciones_form = BoxLayout(orientation="horizontal", size_hint_y=None, height=45, spacing=10)
         self.boton_registrar = boton_estilizado("Registrar cultivo")
         self.boton_registrar.bind(on_press=self.registrar_cultivo)
@@ -131,11 +127,11 @@ class PantallaCultivos(ScrollView):
         fila_acciones_form.add_widget(self.boton_cancelar_edicion)
         contenido.add_widget(fila_acciones_form)
 
-        # --- Mensaje de aviso (errores o confirmaciones del formulario) ---
+        #  Mensaje de aviso
         self.mensaje = Label(text="", size_hint_y=None, height=30, color=COLOR_ERROR)
         contenido.add_widget(self.mensaje)
 
-        # --- Sección: Buscar ---
+        #  Sección: Buscar
         fila, self.campo_buscar_nombre = fila_con_etiqueta("Buscar (nombre, tipo o parcela):", "ej: maíz, parcela 8")
         contenido.add_widget(fila)
 
@@ -170,7 +166,7 @@ class PantallaCultivos(ScrollView):
         boton_eliminar.bind(on_press=self.eliminar_cultivo)
         contenido.add_widget(boton_eliminar)
 
-        # --- Lista de todos los cultivos ---
+        #  Lista de todos los cultivos
         contenido.add_widget(Label(text="Cultivos registrados:", size_hint_y=None, height=30,
                                     font_size=16, color=COLOR_VERDE_CLARO, bold=True))
         self.lista_texto = Label(text="", size_hint_y=None, halign="left", valign="top",

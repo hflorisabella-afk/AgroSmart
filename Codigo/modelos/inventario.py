@@ -22,7 +22,7 @@ class ItemInventario:
 
 # --- Zona de prueba ---
 if __name__ == "__main__":
-    item1 = ItemInventario(
+    item1 = ItemInventario(t
         codigo="INV001",
         nombre="Semilla de maíz",
         tipo="Semilla",
