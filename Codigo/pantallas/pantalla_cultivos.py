@@ -109,7 +109,7 @@ class PantallaCultivos(ScrollView):
         contenido.add_widget(fila)
         fila, self.campo_localidad = fila_con_etiqueta("Localidad:", "ej: Chimaltenango")
         contenido.add_widget(fila)
-        fila, self.campo_parcela = fila_con_etiqueta("Número de parcela:", "ej: 3")
+        fila, self.campo_parcela = fila_con_etiqueta("Parcela:", "ej: 3")
         contenido.add_widget(fila)
         fila, self.campo_tamano = fila_con_etiqueta("Tamaño de parcela (ha):", "ej: 2.5")
         contenido.add_widget(fila)
@@ -122,7 +122,7 @@ class PantallaCultivos(ScrollView):
         self.boton_registrar.bind(on_press=self.registrar_cultivo)
         fila_acciones_form.add_widget(self.boton_registrar)
 
-        self.boton_cancelar_edicion = boton_estilizado("Cancelar edición", color_fondo=(0.5, 0.3, 0.3, 1))
+        self.boton_cancelar_edicion = boton_estilizado("Limpiar campos", color_fondo=(0.5, 0.3, 0.3, 1))
         self.boton_cancelar_edicion.bind(on_press=self.cancelar_edicion)
         fila_acciones_form.add_widget(self.boton_cancelar_edicion)
         contenido.add_widget(fila_acciones_form)
@@ -167,18 +167,26 @@ class PantallaCultivos(ScrollView):
         contenido.add_widget(boton_eliminar)
 
         #  Lista de todos los cultivos
-        contenido.add_widget(Label(text="Cultivos registrados:", size_hint_y=None, height=30,
-                                    font_size=16, color=COLOR_VERDE_CLARO, bold=True))
-        self.lista_texto = Label(text="", size_hint_y=None, halign="left", valign="top",
-                                  font_size=14, color=COLOR_TEXTO_CLARO)
-        self.lista_texto.bind(texture_size=self._actualizar_altura_lista)
-        contenido.add_widget(self.lista_texto)
+        contenido.add_widget(Label(
+            text="Cultivos registrados:",
+            size_hint_y=None,
+            height=35,
+            font_size=16,
+            color=COLOR_VERDE_CLARO,
+            bold=True
+        ))
+
+        # Contenedor donde se mostrarán los cultivos como tarjetas.
+        self.lista_cultivos = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=8,
+            padding=[0, 5]
+        )
+        self.lista_cultivos.bind(minimum_height=self.lista_cultivos.setter("height"))
+        contenido.add_widget(self.lista_cultivos)
 
         self.actualizar_lista()
-
-    def _actualizar_altura_lista(self, instancia, tamano):
-        instancia.height = tamano[1]
-        instancia.text_size = (instancia.width, None)
 
     def registrar_cultivo(self, instancia_boton):
         nombre = self.campo_nombre.text.strip()
@@ -373,11 +381,60 @@ class PantallaCultivos(ScrollView):
         return texto
 
     def actualizar_lista(self):
+        # Limpia las tarjetas anteriores.
+        self.lista_cultivos.clear_widgets()
+
         if len(gestor.lista_cultivos) == 0:
-            self.lista_texto.text = "No hay cultivos registrados todavía."
-        else:
-            lineas = [str(cultivo) for cultivo in gestor.lista_cultivos]
-            self.lista_texto.text = "\n".join(lineas)
+            mensaje_vacio = Label(
+                text="No hay cultivos registrados todavía.",
+                size_hint_y=None,
+                height=40,
+                font_size=14,
+                color=COLOR_TEXTO_CLARO
+            )
+            self.lista_cultivos.add_widget(mensaje_vacio)
+            return
+
+        # Cada cultivo se muestra como una tarjeta independiente.
+        for cultivo in gestor.lista_cultivos:
+            tarjeta = BoxLayout(
+                orientation="vertical",
+                size_hint_y=None,
+                height=125,
+                padding=10,
+                spacing=4
+            )
+
+            tarjeta.background_color = (0.12, 0.20, 0.15, 1)
+
+            informacion = Label(
+                text=(
+                    f"[b]{cultivo.codigo}[/b]   {cultivo.nombre}\n"
+                    f"Tierra: {cultivo.tipo_tierra}   |   Localidad: {cultivo.localidad}\n"
+                    f"Parcela: {cultivo.numero_parcela}   |   "
+                    f"Tamaño: {cultivo.tamano_parcela} ha\n"
+                    f"Fecha de siembra: {cultivo.fecha_siembra}   |   "
+                    f"Estado: {cultivo.estado}"
+                ),
+                markup=True,
+                size_hint_y=None,
+                height=85,
+                font_size=14,
+                color=COLOR_TEXTO_CLARO,
+                halign="left",
+                valign="middle"
+            )
+            informacion.bind(size=lambda inst, val: setattr(inst, "text_size", val))
+
+            boton_editar = boton_estilizado("Editar cultivo", alto=32)
+            boton_editar.bind(
+                on_press=lambda inst, cultivo=cultivo:
+                self._entrar_a_modo_edicion(cultivo)
+            )
+
+            tarjeta.add_widget(informacion)
+            tarjeta.add_widget(boton_editar)
+            self.lista_cultivos.add_widget(tarjeta)
 
 
 class AgroSmartApp(App):

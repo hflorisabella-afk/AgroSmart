@@ -1,177 +1,553 @@
 # pantalla_clima.py
-# Pantalla visual de AgroSmart para el módulo de Clima y Alertas.
-# Permite consultar el clima actual de una localidad, ver su alerta,
-# y consultar el pronóstico de los próximos 5 días.
-#
-# La lógica real (consultar la API de Open-Meteo, calcular alertas) vive
-# en modelos/clima.py — aquí solo conectamos eso con la pantalla.
+# Pantalla visual de AgroSmart para el módulo de Clima.
+# Los cultivos se obtienen desde GestorCultivos.
+# La localidad se toma automáticamente del cultivo seleccionado.
 
 import sys
 import os
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "modelos"))
+sys.path.append(
+    os.path.join(os.path.dirname(__file__), "..", "modelos")
+)
 
-from clima import obtener_clima_actual, obtener_pronostico_dias
+from gestor_cultivos import GestorCultivos
+from clima import (
+    obtener_clima_actual,
+    obtener_pronostico_dias
+)
 
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.textinput import TextInput
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 
-# ================= COLORES DEL TEMA (igual que la pantalla de Cultivos) =================
-COLOR_FONDO = (1, 1, 1, 1)
-COLOR_VERDE_PRINCIPAL = (0.29, 0.49, 0.36, 1)
-COLOR_VERDE_CLARO = (0.65, 0.85, 0.6, 1)
-COLOR_TEXTO_CLARO = (0, 0, 0, 1)
-COLOR_CAJA_TEXTO = (0.95, 0.97, 0.94, 1)
+
+
+# ============================================================
+# COLORES
+# ============================================================
+
+COLOR_FONDO = (0.05, 0.08, 0.14, 1)
+
+COLOR_AZUL_BOTON = (0.18, 0.42, 0.65, 1)
+COLOR_AZUL_CLARO = (0.55, 0.78, 0.95, 1)
+
+COLOR_TEXTO_CLARO = (0.92, 0.95, 0.98, 1)
+COLOR_INFO = (0.55, 0.78, 0.95, 1)
 COLOR_ERROR = (1, 0.55, 0.5, 1)
-COLOR_EXITO = (0.55, 0.9, 0.5, 1)
-COLOR_INFO = (0, 0, 0, 1)
+COLOR_EXITO = (0.55, 0.9, 0.65, 1)
+
+COLOR_TARJETA = (0.10, 0.18, 0.28, 1)
+
+# Compatibilidad con partes anteriores del código
+COLOR_VERDE_CLARO = COLOR_AZUL_CLARO
+COLOR_VERDE_PRINCIPAL = COLOR_AZUL_BOTON
+
 
 Window.clearcolor = COLOR_FONDO
-Window.size = (750, 700)
+Window.size = (780, 850)
 
 
-def caja_de_texto(hint=""):
-    return TextInput(
-        multiline=False, hint_text=hint, font_size=17,
-        padding=[10, 10, 10, 10], background_color=COLOR_CAJA_TEXTO,
-        foreground_color=(0.1, 0.1, 0.1, 1), hint_text_color=(0.45, 0.45, 0.45, 1),
-        size_hint=(0.6, 1),
+# ============================================================
+# GESTOR PRINCIPAL DE CULTIVOS
+# ============================================================
+
+gestor_cultivos = GestorCultivos()
+
+
+# ============================================================
+# BOTÓN
+# ============================================================
+
+def boton_estilizado(
+    texto,
+    alto=45,
+    color_fondo=None
+):
+
+    boton = Button(
+        text=texto,
+        size_hint_y=None,
+        height=alto,
+        background_normal="",
+        background_color=(
+            color_fondo
+            if color_fondo
+            else COLOR_VERDE_PRINCIPAL
+        ),
+        color=(1, 1, 1, 1),
+        bold=True
     )
 
+    return boton
 
-def boton_estilizado(texto, alto=45, color_fondo=None):
-    return Button(
-        text=texto, size_hint_y=None, height=alto, background_normal="",
-        background_color=color_fondo if color_fondo else COLOR_VERDE_PRINCIPAL,
-        color=(1, 1, 1, 1), bold=True,
-    )
 
+# ============================================================
+# PANTALLA CLIMA
+# ============================================================
 
 class PantallaClima(ScrollView):
+
     def __init__(self, **kwargs):
+
         super().__init__(**kwargs)
 
-        contenido = BoxLayout(orientation="vertical", size_hint_y=None, padding=15, spacing=12)
-        contenido.bind(minimum_height=contenido.setter("height"))
-        self.add_widget(contenido)
+        self.cultivo_seleccionado = None
 
-        titulo = Label(text="AgroSmart - Clima y Alertas", font_size=24, bold=True,
-                        size_hint_y=None, height=45, color=COLOR_VERDE_CLARO)
-        contenido.add_widget(titulo)
-
-        # --- Campo de localidad ---
-        fila = BoxLayout(orientation="horizontal", size_hint_y=None, height=45, spacing=10)
-        etiqueta = Label(text="Localidad:", size_hint=(0.3, 1), font_size=16,
-                          halign="right", valign="middle", color=COLOR_TEXTO_CLARO)
-        etiqueta.bind(size=lambda inst, val: setattr(inst, "text_size", val))
-        fila.add_widget(etiqueta)
-        self.campo_localidad = caja_de_texto("ej: Chimaltenango")
-        self.campo_localidad.size_hint = (0.7, 1)
-        fila.add_widget(self.campo_localidad)
-        contenido.add_widget(fila)
-
-        # --- Botones ---
-        fila_botones = BoxLayout(orientation="horizontal", size_hint_y=None, height=45, spacing=10)
-        boton_actual = boton_estilizado("Ver clima actual")
-        boton_actual.bind(on_press=self.consultar_clima_actual)
-        fila_botones.add_widget(boton_actual)
-
-        boton_pronostico = boton_estilizado("Ver pronóstico (5 días)")
-        boton_pronostico.bind(on_press=self.consultar_pronostico)
-        fila_botones.add_widget(boton_pronostico)
-        contenido.add_widget(fila_botones)
-
-        # --- Mensaje de estado (cargando, error, etc.) ---
-        self.mensaje = Label(text="", size_hint_y=None, height=30, color=COLOR_INFO)
-        contenido.add_widget(self.mensaje)
-
-        # --- Resultado: clima actual ---
-        contenido.add_widget(Label(text="Clima actual:", size_hint_y=None, height=28,
-                                    font_size=16, color=COLOR_VERDE_CLARO, bold=True))
-        self.resultado_actual = Label(text="Todavía no se ha consultado nada.",
-                                       size_hint_y=None, halign="left", valign="top",
-                                       font_size=15, color=COLOR_TEXTO_CLARO)
-        self.resultado_actual.bind(texture_size=self._actualizar_altura_resultado_actual)
-        contenido.add_widget(self.resultado_actual)
-
-        # --- Resultado: pronóstico ---
-        contenido.add_widget(Label(text="Pronóstico de 5 días:", size_hint_y=None, height=28,
-                                    font_size=16, color=COLOR_VERDE_CLARO, bold=True))
-        self.resultado_pronostico = Label(text="", size_hint_y=None, halign="left", valign="top",
-                                           font_size=14, color=COLOR_TEXTO_CLARO)
-        self.resultado_pronostico.bind(texture_size=self._actualizar_altura_pronostico)
-        contenido.add_widget(self.resultado_pronostico)
-
-    def _actualizar_altura_resultado_actual(self, instancia, tamano):
-        instancia.height = tamano[1]
-        instancia.text_size = (instancia.width, None)
-
-    def _actualizar_altura_pronostico(self, instancia, tamano):
-        instancia.height = tamano[1]
-        instancia.text_size = (instancia.width, None)
-
-    def consultar_clima_actual(self, instancia_boton):
-        localidad = self.campo_localidad.text.strip()
-        if not localidad:
-            self.mensaje.color = COLOR_ERROR
-            self.mensaje.text = "Escribe una localidad primero."
-            return
-
-        self.mensaje.color = COLOR_INFO
-        self.mensaje.text = "Consultando clima... (necesita internet)"
-
-        clima_actual = obtener_clima_actual(localidad)
-
-        if clima_actual is None:
-            self.mensaje.color = COLOR_ERROR
-            self.mensaje.text = "No se pudo obtener el clima. Revisa tu conexión a internet o el nombre de la localidad."
-            self.resultado_actual.text = "Sin datos."
-            return
-
-        self.mensaje.color = COLOR_EXITO
-        self.mensaje.text = "Clima actualizado correctamente."
-        self.resultado_actual.text = (
-            f"{clima_actual}\n\n{clima_actual.generar_alerta()}\n\n"
-            f"¿Necesita riego? {'Sí' if clima_actual.necesita_riego() else 'No'}"
+        contenido = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            padding=15,
+            spacing=10
         )
 
-    def consultar_pronostico(self, instancia_boton):
-        localidad = self.campo_localidad.text.strip()
-        if not localidad:
-            self.mensaje.color = COLOR_ERROR
-            self.mensaje.text = "Escribe una localidad primero."
+        contenido.bind(
+            minimum_height=contenido.setter("height")
+        )
+
+        self.add_widget(contenido)
+
+        # ----------------------------------------------------
+        # TÍTULO
+        # ----------------------------------------------------
+
+        titulo = Label(
+            text="AgroSmart - Clima",
+            font_size=24,
+            bold=True,
+            size_hint_y=None,
+            height=45,
+            color=COLOR_VERDE_CLARO
+        )
+
+        contenido.add_widget(titulo)
+
+        # ----------------------------------------------------
+        # INFORMACIÓN
+        # ----------------------------------------------------
+
+        informacion = Label(
+            text=(
+                "Selecciona un cultivo para consultar "
+                "el clima de su localidad."
+            ),
+            size_hint_y=None,
+            height=45,
+            font_size=15,
+            color=COLOR_TEXTO_CLARO
+        )
+
+        contenido.add_widget(informacion)
+
+        # ----------------------------------------------------
+        # MENSAJE
+        # ----------------------------------------------------
+
+        self.mensaje = Label(
+            text="",
+            size_hint_y=None,
+            height=40,
+            font_size=15,
+            color=COLOR_INFO
+        )
+
+        contenido.add_widget(self.mensaje)
+
+        # ----------------------------------------------------
+        # CULTIVO SELECCIONADO
+        # ----------------------------------------------------
+
+        self.cultivo_info = Label(
+            text="Ningún cultivo seleccionado.",
+            size_hint_y=None,
+            height=60,
+            font_size=16,
+            color=COLOR_VERDE_CLARO,
+            bold=True
+        )
+
+        contenido.add_widget(
+            self.cultivo_info
+        )
+
+        # ----------------------------------------------------
+        # LISTA DE CULTIVOS
+        # ----------------------------------------------------
+
+        contenido.add_widget(
+            Label(
+                text="Cultivos registrados:",
+                size_hint_y=None,
+                height=35,
+                font_size=17,
+                color=COLOR_VERDE_CLARO,
+                bold=True
+            )
+        )
+
+        self.lista_cultivos = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=8,
+            padding=[0, 5]
+        )
+
+        self.lista_cultivos.bind(
+            minimum_height=self.lista_cultivos.setter(
+                "height"
+            )
+        )
+
+        contenido.add_widget(
+            self.lista_cultivos
+        )
+
+        # ----------------------------------------------------
+        # BOTONES DE CLIMA
+        # ----------------------------------------------------
+
+        fila_botones = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=45,
+            spacing=10
+        )
+
+        boton_actual = boton_estilizado(
+            "Ver clima actual"
+        )
+
+        boton_actual.bind(
+            on_press=self.ver_clima_actual
+        )
+
+        fila_botones.add_widget(
+            boton_actual
+        )
+
+        boton_pronostico = boton_estilizado(
+            "Ver pronóstico (5 días)"
+        )
+
+        boton_pronostico.bind(
+            on_press=self.ver_pronostico
+        )
+
+        fila_botones.add_widget(
+            boton_pronostico
+        )
+
+        contenido.add_widget(
+            fila_botones
+        )
+
+        # ----------------------------------------------------
+        # RESULTADO ACTUAL
+        # ----------------------------------------------------
+
+        contenido.add_widget(
+            Label(
+                text="Clima actual:",
+                size_hint_y=None,
+                height=35,
+                font_size=17,
+                color=COLOR_VERDE_CLARO,
+                bold=True
+            )
+        )
+
+        self.resultado_actual = Label(
+            text="Selecciona un cultivo.",
+            size_hint_y=None,
+            height=130,
+            font_size=15,
+            color=COLOR_TEXTO_CLARO,
+            halign="left",
+            valign="top"
+        )
+
+        self.resultado_actual.bind(
+            size=lambda inst, val:
+            setattr(inst, "text_size", val)
+        )
+
+        contenido.add_widget(
+            self.resultado_actual
+        )
+
+        # ----------------------------------------------------
+        # PRONÓSTICO
+        # ----------------------------------------------------
+
+        contenido.add_widget(
+            Label(
+                text="Pronóstico:",
+                size_hint_y=None,
+                height=35,
+                font_size=17,
+                color=COLOR_VERDE_CLARO,
+                bold=True
+            )
+        )
+
+        self.resultado_pronostico = Label(
+            text="Todavía no hay pronóstico.",
+            size_hint_y=None,
+            height=250,
+            font_size=15,
+            color=COLOR_TEXTO_CLARO,
+            halign="left",
+            valign="top"
+        )
+
+        self.resultado_pronostico.bind(
+            size=lambda inst, val:
+            setattr(inst, "text_size", val)
+        )
+
+        contenido.add_widget(
+            self.resultado_pronostico
+        )
+
+        self.actualizar_lista()
+
+    # ========================================================
+    # ACTUALIZAR LISTA
+    # ========================================================
+
+    def actualizar_lista(self):
+
+        self.lista_cultivos.clear_widgets()
+
+        global gestor_cultivos
+
+        # Volvemos a leer el archivo principal.
+        gestor_cultivos = GestorCultivos()
+
+        if len(
+            gestor_cultivos.lista_cultivos
+        ) == 0:
+
+            self.lista_cultivos.add_widget(
+                Label(
+                    text=(
+                        "No hay cultivos registrados. "
+                        "Primero registra uno en "
+                        "Registro de Cultivos."
+                    ),
+                    size_hint_y=None,
+                    height=50,
+                    color=COLOR_TEXTO_CLARO
+                )
+            )
+
             return
+
+        # ----------------------------------------------------
+        # CREAR BOTÓN PARA CADA CULTIVO
+        # ----------------------------------------------------
+
+        for cultivo in gestor_cultivos.lista_cultivos:
+
+            boton = Button(
+                text=(
+                    f"{cultivo.codigo} - "
+                    f"{cultivo.nombre}\n"
+                    f"Localidad: "
+                    f"{cultivo.localidad} | "
+                    f"Tipo: {cultivo.tipo}"
+                ),
+                size_hint_y=None,
+                height=65,
+                halign="left",
+                valign="middle",
+                background_normal="",
+                background_color=COLOR_TARJETA,
+                color=COLOR_TEXTO_CLARO
+            )
+
+            boton.bind(
+                size=lambda inst, val:
+                setattr(inst, "text_size", val)
+            )
+
+            boton.bind(
+                on_press=lambda inst,
+                cultivo=cultivo:
+                self.seleccionar_cultivo(cultivo)
+            )
+
+            self.lista_cultivos.add_widget(
+                boton
+            )
+
+    # ========================================================
+    # SELECCIONAR CULTIVO
+    # ========================================================
+
+    def seleccionar_cultivo(self, cultivo):
+
+        self.cultivo_seleccionado = cultivo
+
+        self.cultivo_info.text = (
+            f"Seleccionado: {cultivo.nombre}\n"
+            f"Localidad: {cultivo.localidad}"
+        )
 
         self.mensaje.color = COLOR_INFO
-        self.mensaje.text = "Consultando pronóstico... (necesita internet)"
 
-        pronostico = obtener_pronostico_dias(localidad, dias=5)
+        self.mensaje.text = (
+            "Cultivo seleccionado. "
+            "Ahora puedes consultar su clima."
+        )
 
-        if not pronostico:
+        self.resultado_actual.text = (
+            "Presiona 'Ver clima actual'."
+        )
+
+        self.resultado_pronostico.text = (
+            "Presiona 'Ver pronóstico (5 días)'."
+        )
+
+    # ========================================================
+    # OBTENER LOCALIDAD
+    # ========================================================
+
+    def obtener_localidad(self):
+
+        if self.cultivo_seleccionado is None:
+
             self.mensaje.color = COLOR_ERROR
-            self.mensaje.text = "No se pudo obtener el pronóstico. Revisa tu conexión a internet o el nombre de la localidad."
-            self.resultado_pronostico.text = "Sin datos."
+
+            self.mensaje.text = (
+                "Primero selecciona un cultivo."
+            )
+
+            return None
+
+        return (
+            self.cultivo_seleccionado.localidad
+        )
+
+    # ========================================================
+    # CLIMA ACTUAL
+    # ========================================================
+
+    def ver_clima_actual(
+        self,
+        instancia_boton
+    ):
+
+        localidad = self.obtener_localidad()
+
+        if localidad is None:
             return
 
-        self.mensaje.color = COLOR_EXITO
-        self.mensaje.text = "Pronóstico actualizado correctamente."
+        try:
 
-        lineas = []
-        for clima_dia in pronostico:
-            lineas.append(f"{clima_dia}\n   -> {clima_dia.generar_alerta()}")
-        self.resultado_pronostico.text = "\n\n".join(lineas)
+            resultado = obtener_clima_actual(
+                localidad
+            )
+
+            self.resultado_actual.text = (
+                str(resultado)
+            )
+
+            self.mensaje.color = COLOR_EXITO
+
+            self.mensaje.text = (
+                f"Clima consultado para "
+                f"{localidad}."
+            )
+
+        except Exception as error:
+
+            self.mensaje.color = COLOR_ERROR
+
+            self.mensaje.text = (
+                "No fue posible consultar el clima."
+            )
+
+            self.resultado_actual.text = (
+                f"Error: {error}"
+            )
+
+    # ========================================================
+    # PRONÓSTICO
+    # ========================================================
+
+    def ver_pronostico(
+        self,
+        instancia_boton
+    ):
+
+        localidad = self.obtener_localidad()
+
+        if localidad is None:
+            return
+
+        try:
+
+            resultado = obtener_pronostico_dias(
+                localidad
+            )
+
+            if isinstance(resultado, list):
+
+                textos = []
+
+                for dia in resultado:
+
+                    textos.append(
+                        str(dia)
+                    )
+
+                self.resultado_pronostico.text = (
+                    "\n\n".join(textos)
+                )
+
+            else:
+
+                self.resultado_pronostico.text = (
+                    str(resultado)
+                )
+
+            self.mensaje.color = COLOR_EXITO
+
+            self.mensaje.text = (
+                f"Pronóstico consultado para "
+                f"{localidad}."
+            )
+
+        except Exception as error:
+
+            self.mensaje.color = COLOR_ERROR
+
+            self.mensaje.text = (
+                "No fue posible consultar "
+                "el pronóstico."
+            )
+
+            self.resultado_pronostico.text = (
+                f"Error: {error}"
+            )
 
 
-class AgroSmartClimaApp(App):
+# ============================================================
+# PRUEBA INDIVIDUAL
+# ============================================================
+
+class AgroSmartApp(App):
+
     def build(self):
-        self.title = "AgroSmart - Clima"
+
+        self.title = "AgroSmart"
+
         return PantallaClima()
 
 
 if __name__ == "__main__":
-    AgroSmartClimaApp().run()
+
+    AgroSmartApp().run()
