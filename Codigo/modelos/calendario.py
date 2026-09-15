@@ -1,6 +1,5 @@
 # calendario.py
-# Este archivo define dos cosas: un "EventoCalendario" (recordatorios)
-# y una "PrediccionCosecha" (para saber cuándo se espera cosechar).
+from datetime import datetime, timedelta
 
 class EventoCalendario:
     def __init__(self, codigo, codigo_cultivo, tipo, fecha, descripcion=""):
@@ -25,8 +24,76 @@ class PrediccionCosecha:
         return f"Cultivo {self.codigo_cultivo}: cosecha estimada {self.fecha_estimada} ({self.dias_restantes} días) - {self.estado}"
 
 
+class GestorCalendario:
+    """
+    Clase para administrar los eventos y calcular automáticamente
+    las predicciones de cosecha según las fechas de siembra.
+    """
+    def __init__(self):
+        self.eventos = []
+        # Tiempos promedio de ciclo vegetativo (en días) según tipo de cultivo
+        self.dias_maduracion = {
+            "maiz": 120,
+            "frijol": 75,
+            "tomate": 90,
+            "cafe": 270,
+            "papa": 110
+        }
+
+    def agregar_evento(self, evento: EventoCalendario):
+        self.eventos.append(evento)
+
+    def calcular_prediccion(self, codigo_cultivo, nombre_cultivo, fecha_siembra_str):
+        """
+        Calcula la fecha de cosecha proyectada y devuelve una instancia de PrediccionCosecha.
+        Formato de fecha_siembra_str: 'YYYY-MM-DD'
+        """
+        key_cultivo = nombre_cultivo.lower().strip()
+        dias_ciclo = self.dias_maduracion.get(key_cultivo, 90)  # 90 días por defecto si no está en dict
+
+        try:
+            fecha_siembra = datetime.strptime(fecha_siembra_str, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("El formato de fecha debe ser YYYY-MM-DD")
+
+        fecha_estimada_obj = fecha_siembra + timedelta(days=dias_ciclo)
+        hoy = datetime.now()
+        dias_restantes = (fecha_estimada_obj - hoy).days
+
+        # Determinación automática del estado
+        if dias_restantes > 15:
+            estado = "En crecimiento"
+        elif 0 <= dias_restantes <= 15:
+            estado = "Próximo a cosechar"
+        else:
+            estado = "Listo para cosecha (o finalizado)"
+
+        fecha_estimada_str = fecha_estimada_obj.strftime("%Y-%m-%d")
+
+        # Se retorna una nueva instancia de tu clase PrediccionCosecha
+        return PrediccionCosecha(
+            codigo_cultivo=codigo_cultivo,
+            fecha_estimada=fecha_estimada_str,
+            dias_restantes=max(0, dias_restantes),
+            estado=estado
+        )
+
+    def mostrar_calendario(self):
+        """Muestra la lista completa de eventos agendados."""
+        if not self.eventos:
+            print("No hay eventos registrados en el calendario.")
+            return
+
+        print("\n--- AGENDA DE EVENTOS AGRÍCOLAS ---")
+        for ev in sorted(self.eventos, key=lambda x: x.fecha):
+            print(ev)
+
+
 # --- Zona de prueba ---
 if __name__ == "__main__":
+    gestor = GestorCalendario()
+
+    # 1. Pruebas de tus instancias originales
     evento1 = EventoCalendario(
         codigo="EVT001",
         codigo_cultivo="CULT001",
@@ -34,12 +101,26 @@ if __name__ == "__main__":
         fecha="2026-09-01",
         descripcion="Aplicar fertilizante NPK"
     )
-    print(evento1)
+    gestor.agregar_evento(evento1)
 
-    prediccion1 = PrediccionCosecha(
+    gestor.agregar_evento(EventoCalendario("EVT002", "CULT001", "Riego", "2026-09-20", "Riego por goteo programado"))
+
+    # Mostrar agenda
+    gestor.mostrar_calendario()
+
+    print("\n--- PREDICCIÓN DE COSECHAS ---")
+
+    # 2. Generación dinámica de predicciones por fecha de siembra
+    pred1 = gestor.calcular_prediccion(
         codigo_cultivo="CULT001",
-        fecha_estimada="2026-11-15",
-        dias_restantes=45,
-        estado="En crecimiento"
+        nombre_cultivo="maiz",
+        fecha_siembra_str="2026-07-01"
     )
-    print(prediccion1)
+    print(pred1)
+
+    pred2 = gestor.calcular_prediccion(
+        codigo_cultivo="CULT002",
+        nombre_cultivo="frijol",
+        fecha_siembra_str="2026-08-15"
+    )
+    print(pred2)
