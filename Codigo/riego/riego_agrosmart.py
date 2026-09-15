@@ -1,684 +1,813 @@
-"""
-Sistema de Riego Inteligente — PROGRAMA INDEPENDIENTE, UN SOLO ARCHIVO.
-
-Este programa NO depende de ningún otro sistema. Registra sus propios
-cultivos (código, nombre, tipo, tipo de tierra, localidad, número de
-parcela, tamaño de parcela y fecha de siembra) y, a partir de esos datos,
-calcula un control de riego eficiente y personalizado para cada cultivo.
-
-Cómo decide cuánto y cuándo regar cada cultivo (combina TODOS los datos):
-  - tipo_tierra    -> qué tan rápido pierde humedad el suelo
-                       (arcillosa retiene más, arenosa drena más rápido)
-  - tipo (cultivo) -> cuánta agua necesita ese cultivo en particular
-  - tamano_parcela -> escala el caudal de riego (litros/minuto)
-  - fecha_siembra  -> calcula automáticamente la etapa de crecimiento
-                       (recién sembrado / creciendo / maduro) y ajusta
-                       qué tan seguido debe regarse
-
-Uso:
-    python riego_agrosmart.py
-"""
-
-from __future__ import annotations
+# riego_agrosmart.py
+# Lógica del módulo de Riego de AgroSmart.
+# Los cultivos NO se registran aquí.
+# Se obtienen desde GestorCultivos para mantener un solo registro de cultivos.
 
 import json
 import os
 import random
-import logging
+from dataclasses import dataclass
+from datetime import datetime, date
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Dict, Optional
+
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "modelos"))
+
+from cultivo import Cultivo
+from gestor_cultivos import GestorCultivos
 
 
 # ============================================================
-# CONFIGURACIÓN GENERAL
+# CONFIGURACIÓN
 # ============================================================
 
-RUTA_DATOS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datos_riego.json")
+PROBABILIDAD_LLUVIA_POSTERGA = 0.60
+MM_LLUVIA_POSTERGA = 3.0
 
-# --- Umbrales de decisión climática ---
-UMBRAL_PROBABILIDAD_LLUVIA = 0.6   # 0-1, si se supera junto con el umbral de mm, se pospone el riego
-UMBRAL_MM_LLUVIA_ESPERADA = 3.0
+CAUDAL_LITROS_POR_MINUTO_HA = 10
+DURACION_MAXIMA_MINUTOS = 30
+HUMEDAD_INICIAL = 45.0
 
-# --- Perfiles según tipo de tierra (qué tan rápido pierde humedad el suelo) ---
-PERFILES_TIPO_TIERRA = {
-    "arcillosa": {"humedad_minima": 25.0, "humedad_objetivo": 50.0},
-    "arenosa":   {"humedad_minima": 35.0, "humedad_objetivo": 55.0},
-    "franca":    {"humedad_minima": 30.0, "humedad_objetivo": 55.0},
-    "limosa":    {"humedad_minima": 28.0, "humedad_objetivo": 52.0},
+
+# Configuración de humedad según tipo de tierra
+PERFILES_SUELO = {
+    "arcillosa": {
+        "min": 25,
+        "objetivo": 50
+    },
+    "arenosa": {
+        "min": 35,
+        "objetivo": 55
+    },
+    "franca": {
+        "min": 30,
+        "objetivo": 55
+    },
+    "limosa": {
+        "min": 28,
+        "objetivo": 52
+    }
 }
-PERFIL_TIERRA_DEFECTO = {"humedad_minima": 30.0, "humedad_objetivo": 55.0}
 
-# --- Ajuste según tipo de cultivo (cuánta agua necesita cada uno) ---
-# Valor positivo = necesita más humedad disponible; negativo = tolera más sequía.
-AJUSTE_POR_TIPO_CULTIVO = {
-    "maíz": 0.0,
-    "maiz": 0.0,
-    "frijol": -5.0,
-    "café": 5.0,
-    "cafe": 5.0,
-    "tomate": 5.0,
-    "papa": 0.0,
-    "arroz": 10.0,
-    "hortalizas": 5.0,
+
+# Ajustes según tipo de cultivo
+AJUSTES_CULTIVO = {
+    "maíz": 0,
+    "maiz": 0,
+    "frijol": -5,
+    "café": 5,
+    "cafe": 5,
+    "tomate": 5,
+    "papa": 0,
+    "arroz": 10,
+    "hortalizas": 5
 }
-AJUSTE_TIPO_CULTIVO_DEFECTO = 0.0
-
-# --- Ajuste según etapa de crecimiento (calculada desde fecha_siembra) ---
-DIAS_ETAPA_RECIEN_SEMBRADO = 15   # 0-15 días: necesita humedad constante
-DIAS_ETAPA_CRECIENDO = 60         # 16-60 días: etapa normal
-# más de 60 días: se considera "maduro", tolera algo más de sequía
-
-AJUSTE_RECIEN_SEMBRADO = 10.0
-AJUSTE_CRECIENDO = 0.0
-AJUSTE_MADURO = -5.0
-
-# --- Escalado según tamaño de parcela ---
-CAUDAL_LITROS_MIN_POR_HECTAREA = 10.0
-DURACION_MAXIMA_RIEGO_MIN = 30
-
-HUMEDAD_INICIAL_POR_DEFECTO = 45.0
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger("riego_agrosmart")
 
 
 # ============================================================
-# MODELOS DE DOMINIO
+# FUNCIONES AUXILIARES
+# ============================================================
+
+def normalizar_codigo(codigo):
+    """
+    Convierte códigos como:
+    CULT001
+    cult1
+    001
+    1
+
+    en:
+    CULT001
+    """
+
+    codigo = str(codigo).strip().upper()
+
+    if codigo.startswith("CULT"):
+        codigo = codigo[4:]
+
+    if codigo.isdigit():
+        return f"CULT{int(codigo):03d}"
+
+    return codigo
+
+
+def calcular_etapa_crecimiento(fecha_siembra):
+    """
+    Calcula la etapa del cultivo según los días desde la siembra.
+    """
+
+    try:
+        fecha = datetime.strptime(fecha_siembra, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return "creciendo", 0
+
+    dias = (date.today() - fecha).days
+
+    if dias <= 15:
+        return "recién sembrado", 10
+
+    elif dias <= 60:
+        return "creciendo", 0
+
+    else:
+        return "maduro", -5
+
+
+def calcular_configuracion_zona(cultivo):
+    """
+    Calcula la configuración de riego usando los datos
+    que vienen del registro principal de Cultivos.
+    """
+
+    tierra = cultivo.tipo_tierra.lower().strip()
+
+    perfil = PERFILES_SUELO.get(
+        tierra,
+        {
+            "min": 30,
+            "objetivo": 55
+        }
+    )
+
+    humedad_minima = perfil["min"]
+    humedad_objetivo = perfil["objetivo"]
+
+    tipo_cultivo = cultivo.tipo.lower().strip()
+
+    ajuste_cultivo = 0
+
+    for nombre, ajuste in AJUSTES_CULTIVO.items():
+        if nombre in tipo_cultivo:
+            ajuste_cultivo = ajuste
+            break
+
+    etapa, ajuste_etapa = calcular_etapa_crecimiento(
+        cultivo.fecha_siembra
+    )
+
+    humedad_minima += ajuste_cultivo
+    humedad_objetivo += ajuste_cultivo
+
+    humedad_minima += ajuste_etapa
+    humedad_objetivo += ajuste_etapa
+
+    # Evitamos valores fuera de un rango razonable
+    humedad_minima = max(10, min(humedad_minima, 80))
+    humedad_objetivo = max(humedad_minima + 5, min(humedad_objetivo, 90))
+
+    return ConfiguracionZona(
+        nombre=cultivo.nombre,
+        humedad_minima=humedad_minima,
+        humedad_objetivo=humedad_objetivo,
+        duracion_maxima=DURACION_MAXIMA_MINUTOS,
+        caudal=CAUDAL_LITROS_POR_MINUTO_HA,
+        etapa=etapa
+    )
+
+
+# ============================================================
+# CONFIGURACIÓN DE ZONA
 # ============================================================
 
 @dataclass
 class ConfiguracionZona:
-    """Configuración de riego calculada para un cultivo en particular."""
     nombre: str
     humedad_minima: float
     humedad_objetivo: float
-    duracion_maxima_riego_min: int
-    caudal_litros_min: float
-    etapa_crecimiento: str
+    duracion_maxima: int
+    caudal: float
+    etapa: str
 
+
+# ============================================================
+# SENSOR DE HUMEDAD
+# ============================================================
 
 class SensorHumedad:
-    """Sensor de humedad del suelo (simulado, con persistencia)."""
 
-    def __init__(self, humedad_inicial: float, simulado: bool = True):
-        self._humedad = humedad_inicial
-        self.simulado = simulado
-        self._ultima_lectura = datetime.now()
+    def __init__(self, humedad_inicial=HUMEDAD_INICIAL):
+        self.humedad = float(humedad_inicial)
 
-    def leer(self) -> float:
-        if self.simulado:
-            self._simular_evaporacion()
-        return round(self._humedad, 1)
+    def leer(self):
+        """
+        Simula una pequeña variación natural de humedad.
+        """
 
-    def _simular_evaporacion(self) -> None:
-        ahora = datetime.now()
-        minutos_transcurridos = (ahora - self._ultima_lectura).total_seconds() / 60
-        perdida = minutos_transcurridos * 0.05 + random.uniform(0, 0.3)
-        self._humedad = max(0.0, self._humedad - perdida)
-        self._ultima_lectura = ahora
+        perdida = random.uniform(0, 2)
 
-    def registrar_riego(self, incremento: float) -> None:
-        self._humedad = min(100.0, self._humedad + incremento)
+        self.humedad -= perdida
 
+        if self.humedad < 0:
+            self.humedad = 0
+
+        return round(self.humedad, 2)
+
+    def registrar_riego(self, minutos, litros_por_minuto):
+        """
+        Aumenta la humedad después de realizar el riego.
+        """
+
+        aumento = minutos * litros_por_minuto * 0.05
+
+        self.humedad += aumento
+
+        if self.humedad > 100:
+            self.humedad = 100
+
+        return round(self.humedad, 2)
+
+
+# ============================================================
+# VÁLVULA
+# ============================================================
 
 class Valvula:
-    """Representa la válvula/actuador físico de una zona de riego."""
 
-    def __init__(self, nombre: str, simulado: bool = True):
-        self.nombre = nombre
-        self.simulado = simulado
+    def __init__(self):
         self.abierta = False
 
-    def abrir(self) -> None:
+    def abrir(self):
         self.abierta = True
-        if self.simulado:
-            print(f"  [VÁLVULA] '{self.nombre}' ABIERTA (simulado)")
-        # Para hardware real: GPIO.output(self.pin, GPIO.HIGH)
 
-    def cerrar(self) -> None:
+    def cerrar(self):
         self.abierta = False
-        if self.simulado:
-            print(f"  [VÁLVULA] '{self.nombre}' CERRADA (simulado)")
-        # Para hardware real: GPIO.output(self.pin, GPIO.LOW)
 
+
+# ============================================================
+# REGISTRO DE RIEGO
+# ============================================================
 
 @dataclass
 class RegistroRiego:
-    momento: str
+    fecha_hora: str
     litros_estimados: float
     motivo: str
 
 
-@dataclass
-class Cultivo:
-    """Representa un cultivo registrado, con todos sus datos."""
-    codigo: str
-    nombre: str
-    tipo: str
-    tipo_tierra: str
-    localidad: str
-    numero_parcela: str
-    tamano_parcela: float
-    fecha_siembra: str
-
-    def __str__(self) -> str:
-        return (f"[{self.codigo}] {self.nombre} ({self.tipo}) - {self.localidad}, "
-                f"parcela {self.numero_parcela} ({self.tamano_parcela} ha) - "
-                f"sembrado el {self.fecha_siembra}")
-
+# ============================================================
+# ZONA DE RIEGO
+# ============================================================
 
 class ZonaRiego:
-    """Une un cultivo con su sensor, válvula y configuración de riego calculada."""
 
-    def __init__(self, cultivo: Cultivo, config: ConfiguracionZona,
-                 sensor: SensorHumedad, valvula: Valvula):
+    def __init__(
+        self,
+        cultivo,
+        humedad_inicial=HUMEDAD_INICIAL,
+        historial=None
+    ):
         self.cultivo = cultivo
-        self.config = config
-        self.sensor = sensor
-        self.valvula = valvula
-        self.historial: list[RegistroRiego] = []
 
-    def necesita_riego(self) -> bool:
-        return self.sensor.leer() < self.config.humedad_minima
+        self.sensor = SensorHumedad(humedad_inicial)
 
-    def __str__(self) -> str:
-        return (f"[{self.cultivo.codigo}] {self.cultivo.nombre} - etapa: {self.config.etapa_crecimiento} - "
-                f"humedad actual: {self.sensor.leer()}% (mínimo: {self.config.humedad_minima}%, "
-                f"objetivo: {self.config.humedad_objetivo}%)")
+        self.valvula = Valvula()
+
+        self.configuracion = calcular_configuracion_zona(
+            cultivo
+        )
+
+        self.historial = historial if historial else []
+
+    def recalcular_configuracion(self):
+        self.configuracion = calcular_configuracion_zona(
+            self.cultivo
+        )
+
+    def necesita_riego(self, humedad=None):
+
+        if humedad is None:
+            humedad = self.sensor.leer()
+
+        return humedad < self.configuracion.humedad_minima
 
 
 # ============================================================
-# CLIMA (interfaz lista para conectar tu sistema real más adelante)
+# CLIMA PARA RIEGO
 # ============================================================
 
 @dataclass
 class PronosticoClima:
-    probabilidad_lluvia: float   # 0.0 a 1.0
-    mm_lluvia_esperada: float
-    temperatura_c: float
-    viento_kmh: float = 0.0
+    probabilidad_lluvia: float
+    milimetros_lluvia: float
 
 
 class ProveedorClima(ABC):
-    """
-    Interfaz para cualquier fuente de datos climáticos.
-
-    Cuando conectes tu sistema de clima real, crea una clase que herede de
-    ProveedorClima e implemente obtener_pronostico(). Luego reemplaza la
-    variable PROVEEDOR_CLIMA más abajo en este archivo. Nada más cambia.
-    """
 
     @abstractmethod
-    def obtener_pronostico(self) -> PronosticoClima:
-        raise NotImplementedError
+    def obtener_pronostico(self, localidad):
+        pass
 
 
 class ProveedorClimaSimulado(ProveedorClima):
-    """Proveedor de clima simulado, mientras no haya un sistema de clima real conectado."""
 
-    def obtener_pronostico(self) -> PronosticoClima:
+    def obtener_pronostico(self, localidad):
+
         return PronosticoClima(
-            probabilidad_lluvia=round(random.uniform(0, 1), 2),
-            mm_lluvia_esperada=round(random.uniform(0, 10), 1),
-            temperatura_c=round(random.uniform(15, 32), 1),
-            viento_kmh=round(random.uniform(0, 20), 1),
+            probabilidad_lluvia=random.uniform(0, 1),
+            milimetros_lluvia=random.uniform(0, 10)
         )
 
 
 class ProveedorClimaFijo(ProveedorClima):
-    """Proveedor de clima con valores fijos, útil para pruebas deterministas."""
 
-    def __init__(self, pronostico: PronosticoClima):
-        self._pronostico = pronostico
+    def __init__(
+        self,
+        probabilidad_lluvia,
+        milimetros_lluvia
+    ):
+        self.probabilidad_lluvia = probabilidad_lluvia
+        self.milimetros_lluvia = milimetros_lluvia
 
-    def obtener_pronostico(self) -> PronosticoClima:
-        return self._pronostico
+    def obtener_pronostico(self, localidad):
 
-
-PROVEEDOR_CLIMA: ProveedorClima = ProveedorClimaSimulado()
-
-
-# ============================================================
-# PERSISTENCIA (un solo archivo propio: datos_riego.json)
-# ============================================================
-
-def cargar_datos() -> dict:
-    if not os.path.exists(RUTA_DATOS):
-        return {"cultivos": {}}
-    with open(RUTA_DATOS, "r", encoding="utf-8") as archivo:
-        return json.load(archivo)
+        return PronosticoClima(
+            self.probabilidad_lluvia,
+            self.milimetros_lluvia
+        )
 
 
-def guardar_datos(datos: dict) -> None:
-    with open(RUTA_DATOS, "w", encoding="utf-8") as archivo:
-        json.dump(datos, archivo, ensure_ascii=False, indent=2)
+PROVEEDOR_CLIMA = ProveedorClimaSimulado()
 
 
 # ============================================================
-# LÓGICA DE CÁLCULO DE RIEGO (combina todos los aspectos del cultivo)
+# PERSISTENCIA DEL MÓDULO DE RIEGO
 # ============================================================
 
-def calcular_etapa_crecimiento(fecha_siembra: str) -> str:
-    """Calcula la etapa de crecimiento según los días transcurridos desde la siembra."""
+ARCHIVO_RIEGO = os.path.join(
+    os.path.dirname(__file__),
+    "datos_riego.json"
+)
+
+
+def cargar_datos_riego():
+
+    if not os.path.exists(ARCHIVO_RIEGO):
+        return {}
+
     try:
-        fecha = datetime.strptime(fecha_siembra, "%Y-%m-%d")
-    except ValueError:
-        return "desconocida"
+        with open(
+            ARCHIVO_RIEGO,
+            "r",
+            encoding="utf-8"
+        ) as archivo:
 
-    dias = (datetime.now() - fecha).days
+            return json.load(archivo)
 
-    if dias < 0:
-        return "no sembrado aún"
-    elif dias <= DIAS_ETAPA_RECIEN_SEMBRADO:
-        return "recién sembrado"
-    elif dias <= DIAS_ETAPA_CRECIENDO:
-        return "creciendo"
-    else:
-        return "maduro"
+    except (json.JSONDecodeError, OSError):
+
+        return {}
 
 
-def _ajuste_por_etapa(etapa: str) -> float:
-    return {
-        "recién sembrado": AJUSTE_RECIEN_SEMBRADO,
-        "creciendo": AJUSTE_CRECIENDO,
-        "maduro": AJUSTE_MADURO,
-    }.get(etapa, 0.0)
+def guardar_datos_riego(datos):
 
+    with open(
+        ARCHIVO_RIEGO,
+        "w",
+        encoding="utf-8"
+    ) as archivo:
 
-def calcular_configuracion_zona(cultivo: Cultivo) -> ConfiguracionZona:
-    """
-    Calcula los umbrales de riego para un cultivo combinando:
-    tipo de tierra, tipo de cultivo, tamaño de parcela y etapa de crecimiento.
-    """
-    tipo_tierra = cultivo.tipo_tierra.strip().lower()
-    perfil_tierra = PERFILES_TIPO_TIERRA.get(tipo_tierra, PERFIL_TIERRA_DEFECTO)
-
-    ajuste_cultivo = AJUSTE_POR_TIPO_CULTIVO.get(cultivo.tipo.strip().lower(), AJUSTE_TIPO_CULTIVO_DEFECTO)
-
-    etapa = calcular_etapa_crecimiento(cultivo.fecha_siembra)
-    ajuste_etapa = _ajuste_por_etapa(etapa)
-
-    humedad_minima = perfil_tierra["humedad_minima"] + ajuste_cultivo + ajuste_etapa
-    humedad_objetivo = perfil_tierra["humedad_objetivo"] + ajuste_cultivo
-
-    # Mantenemos los valores dentro de un rango razonable (0-95%)
-    humedad_minima = max(5.0, min(95.0, humedad_minima))
-    humedad_objetivo = max(humedad_minima + 5.0, min(95.0, humedad_objetivo))
-
-    caudal = round(CAUDAL_LITROS_MIN_POR_HECTAREA * max(cultivo.tamano_parcela, 0.1), 1)
-
-    return ConfiguracionZona(
-        nombre=cultivo.nombre,
-        humedad_minima=round(humedad_minima, 1),
-        humedad_objetivo=round(humedad_objetivo, 1),
-        duracion_maxima_riego_min=DURACION_MAXIMA_RIEGO_MIN,
-        caudal_litros_min=caudal,
-        etapa_crecimiento=etapa,
-    )
+        json.dump(
+            datos,
+            archivo,
+            ensure_ascii=False,
+            indent=2
+        )
 
 
 # ============================================================
-# GESTOR: registra cultivos y arma sus zonas de riego
+# GESTOR DE RIEGO
 # ============================================================
 
 class GestorRiego:
-    def __init__(self):
-        self.cultivos: Dict[str, Cultivo] = {}
-        self.zonas: Dict[str, ZonaRiego] = {}
-        self.contador = 0
+
+    def __init__(self, gestor_cultivos=None):
+
+        self.gestor_cultivos = (
+            gestor_cultivos
+            if gestor_cultivos
+            else GestorCultivos()
+        )
+
+        self.cultivos = {}
+        self.zonas = {}
+
         self._cargar()
 
-    def _cargar(self) -> None:
-        datos = cargar_datos()
-        for codigo, info in datos.get("cultivos", {}).items():
-            cultivo = Cultivo(
-                codigo=codigo,
-                nombre=info["nombre"],
-                tipo=info["tipo"],
-                tipo_tierra=info["tipo_tierra"],
-                localidad=info["localidad"],
-                numero_parcela=info["numero_parcela"],
-                tamano_parcela=info["tamano_parcela"],
-                fecha_siembra=info["fecha_siembra"],
-            )
+        self.sincronizar_con_cultivos()
+
+    # --------------------------------------------------------
+    # SINCRONIZACIÓN CON GESTOR CULTIVOS
+    # --------------------------------------------------------
+
+    def sincronizar_con_cultivos(self):
+
+        cultivos_actuales = self.gestor_cultivos.lista_cultivos
+
+        codigos_actuales = set()
+
+        for cultivo in cultivos_actuales:
+
+            codigo = cultivo.codigo
+
+            codigos_actuales.add(codigo)
+
             self.cultivos[codigo] = cultivo
 
-            config_zona = calcular_configuracion_zona(cultivo)
-            sensor = SensorHumedad(humedad_inicial=info.get("humedad", HUMEDAD_INICIAL_POR_DEFECTO))
-            valvula = Valvula(nombre=f"{codigo}-{cultivo.nombre}")
-            zona = ZonaRiego(cultivo=cultivo, config=config_zona, sensor=sensor, valvula=valvula)
+            if codigo not in self.zonas:
 
-            for evento in info.get("historial", []):
-                zona.historial.append(RegistroRiego(**evento))
+                datos_guardados = (
+                    self.datos_guardados.get(
+                        codigo,
+                        {}
+                    )
+                )
 
-            self.zonas[codigo] = zona
+                humedad = datos_guardados.get(
+                    "humedad",
+                    HUMEDAD_INICIAL
+                )
 
-        # El contador se basa en el número más alto ya usado, para no repetir códigos
-        numero_mas_alto = 0
-        for codigo in self.cultivos:
-            if codigo.startswith("CULT") and codigo[4:].isdigit():
-                numero_mas_alto = max(numero_mas_alto, int(codigo[4:]))
-        self.contador = numero_mas_alto
+                historial_datos = datos_guardados.get(
+                    "historial",
+                    []
+                )
 
-    def guardar(self) -> None:
-        datos = {"cultivos": {}}
+                historial = []
+
+                for registro in historial_datos:
+
+                    historial.append(
+                        RegistroRiego(
+                            fecha_hora=registro.get(
+                                "fecha_hora",
+                                ""
+                            ),
+                            litros_estimados=float(
+                                registro.get(
+                                    "litros_estimados",
+                                    0
+                                )
+                            ),
+                            motivo=registro.get(
+                                "motivo",
+                                ""
+                            )
+                        )
+                    )
+
+                self.zonas[codigo] = ZonaRiego(
+                    cultivo,
+                    humedad_inicial=humedad,
+                    historial=historial
+                )
+
+            else:
+
+                # Actualiza la referencia al cultivo principal
+                self.zonas[codigo].cultivo = cultivo
+
+                # Recalcula por si el usuario editó
+                # tipo de tierra, tipo de cultivo o fecha.
+                self.zonas[codigo].recalcular_configuracion()
+
+        # Si un cultivo fue eliminado desde Cultivos,
+        # también desaparece de las zonas activas de Riego.
+        codigos_zonas = list(self.zonas.keys())
+
+        for codigo in codigos_zonas:
+
+            if codigo not in codigos_actuales:
+
+                del self.zonas[codigo]
+
+                if codigo in self.cultivos:
+                    del self.cultivos[codigo]
+
+        self.guardar()
+
+    # --------------------------------------------------------
+    # PERSISTENCIA
+    # --------------------------------------------------------
+
+    def _cargar(self):
+
+        self.datos_guardados = cargar_datos_riego()
+
+    def guardar(self):
+
+        datos = {}
+
         for codigo, zona in self.zonas.items():
-            cultivo = zona.cultivo
-            datos["cultivos"][codigo] = {
-                "nombre": cultivo.nombre,
-                "tipo": cultivo.tipo,
-                "tipo_tierra": cultivo.tipo_tierra,
-                "localidad": cultivo.localidad,
-                "numero_parcela": cultivo.numero_parcela,
-                "tamano_parcela": cultivo.tamano_parcela,
-                "fecha_siembra": cultivo.fecha_siembra,
-                "humedad": zona.sensor.leer(),
+
+            datos[codigo] = {
+                "humedad": zona.sensor.humedad,
                 "historial": [
-                    {"momento": r.momento, "litros_estimados": r.litros_estimados, "motivo": r.motivo}
-                    for r in zona.historial
-                ],
+                    {
+                        "fecha_hora": registro.fecha_hora,
+                        "litros_estimados": registro.litros_estimados,
+                        "motivo": registro.motivo
+                    }
+                    for registro in zona.historial
+                ]
             }
-        guardar_datos(datos)
 
-    def generar_codigo(self) -> str:
-        self.contador += 1
-        return f"CULT{self.contador:03d}"
+        guardar_datos_riego(datos)
 
-    def registrar_cultivo(self, cultivo: Cultivo) -> ZonaRiego:
-        config_zona = calcular_configuracion_zona(cultivo)
-        sensor = SensorHumedad(humedad_inicial=HUMEDAD_INICIAL_POR_DEFECTO)
-        valvula = Valvula(nombre=f"{cultivo.codigo}-{cultivo.nombre}")
-        zona = ZonaRiego(cultivo=cultivo, config=config_zona, sensor=sensor, valvula=valvula)
+    # --------------------------------------------------------
+    # BUSCAR CULTIVO
+    # --------------------------------------------------------
 
-        self.cultivos[cultivo.codigo] = cultivo
-        self.zonas[cultivo.codigo] = zona
-        self.guardar()
-        return zona
+    def buscar_por_codigo(self, codigo):
 
-    def eliminar_cultivo(self, codigo: str) -> bool:
-        if codigo not in self.cultivos:
-            return False
-        del self.cultivos[codigo]
-        del self.zonas[codigo]
-        self.guardar()
-        return True
+        codigo = normalizar_codigo(codigo)
 
-    def buscar_por_codigo(self, codigo: str) -> Optional[ZonaRiego]:
+        self.sincronizar_con_cultivos()
+
+        return self.cultivos.get(codigo)
+
+    # --------------------------------------------------------
+    # OBTENER ZONA
+    # --------------------------------------------------------
+
+    def obtener_zona(self, codigo):
+
+        codigo = normalizar_codigo(codigo)
+
+        self.sincronizar_con_cultivos()
+
         return self.zonas.get(codigo)
 
-    def recalcular_configuraciones(self) -> None:
-        """
-        Vuelve a calcular los umbrales de cada zona (por ejemplo, la etapa de
-        crecimiento cambia con el tiempo según fecha_siembra). Se llama antes
-        de cada revisión de riego para que las decisiones sean siempre frescas.
-        """
+    # --------------------------------------------------------
+    # ELIMINAR
+    # --------------------------------------------------------
+
+    def eliminar_cultivo(self, codigo):
+
+        codigo = normalizar_codigo(codigo)
+
+        if codigo in self.zonas:
+
+            del self.zonas[codigo]
+
+        if codigo in self.cultivos:
+
+            del self.cultivos[codigo]
+
+        self.guardar()
+
+    # --------------------------------------------------------
+    # RECALCULAR CONFIGURACIONES
+    # --------------------------------------------------------
+
+    def recalcular_configuraciones(self):
+
+        self.sincronizar_con_cultivos()
+
         for zona in self.zonas.values():
-            zona.config = calcular_configuracion_zona(zona.cultivo)
+
+            zona.recalcular_configuracion()
+
+        self.guardar()
 
 
 # ============================================================
-# CONTROLADOR: lógica de decisión (humedad + clima)
+# CONTROLADOR DE RIEGO
 # ============================================================
 
 class ControladorRiego:
-    def __init__(self, gestor: GestorRiego, proveedor_clima: ProveedorClima):
-        self.gestor = gestor
-        self.proveedor_clima = proveedor_clima
 
-    def revisar_y_regar_todas(self) -> None:
-        if not self.gestor.zonas:
-            logger.info("No hay cultivos registrados todavía. Nada que revisar.")
-            return
+    def __init__(
+        self,
+        gestor_riego,
+        proveedor_clima=None
+    ):
 
-        self.gestor.recalcular_configuraciones()
+        self.gestor_riego = gestor_riego
 
-        pronostico = self.proveedor_clima.obtener_pronostico()
-        logger.info(
-            "Pronóstico: prob. lluvia=%.0f%%, mm esperados=%.1f, temp=%.1f°C",
-            pronostico.probabilidad_lluvia * 100,
-            pronostico.mm_lluvia_esperada,
-            pronostico.temperatura_c,
+        self.proveedor_clima = (
+            proveedor_clima
+            if proveedor_clima
+            else PROVEEDOR_CLIMA
         )
 
-        if self._debe_posponerse_por_lluvia(pronostico):
-            logger.info("Riego POSPUESTO en todas las zonas: se espera lluvia suficiente.")
-            return
+    # --------------------------------------------------------
+    # REVISAR TODOS
+    # --------------------------------------------------------
 
-        for zona in self.gestor.zonas.values():
-            self._revisar_zona(zona, pronostico)
+    def revisar_y_regar_todas(self):
 
-        self.gestor.guardar()
+        self.gestor_riego.sincronizar_con_cultivos()
 
-    def _debe_posponerse_por_lluvia(self, pronostico: PronosticoClima) -> bool:
-        return (
-            pronostico.probabilidad_lluvia >= UMBRAL_PROBABILIDAD_LLUVIA
-            and pronostico.mm_lluvia_esperada >= UMBRAL_MM_LLUVIA_ESPERADA
-        )
+        resultados = []
 
-    def _revisar_zona(self, zona: ZonaRiego, pronostico: PronosticoClima) -> None:
+        if not self.gestor_riego.zonas:
+
+            return resultados
+
+        for zona in self.gestor_riego.zonas.values():
+
+            resultado = self._revisar_zona(zona)
+
+            resultados.append(resultado)
+
+        self.gestor_riego.guardar()
+
+        return resultados
+
+    # --------------------------------------------------------
+    # REVISAR UNA ZONA
+    # --------------------------------------------------------
+
+    def revisar_zona(self, codigo):
+
+        zona = self.gestor_riego.obtener_zona(codigo)
+
+        if zona is None:
+
+            return {
+                "codigo": normalizar_codigo(codigo),
+                "estado": "error",
+                "mensaje": "Cultivo no encontrado."
+            }
+
+        return self._revisar_zona(zona)
+
+    # --------------------------------------------------------
+    # LÓGICA PRINCIPAL
+    # --------------------------------------------------------
+
+    def _revisar_zona(self, zona):
+
+        cultivo = zona.cultivo
+
         humedad_actual = zona.sensor.leer()
-        logger.info(
-            "Cultivo '%s' (%s, etapa: %s): humedad actual = %.1f%% (mínimo: %.1f%%)",
-            zona.cultivo.codigo, zona.cultivo.nombre, zona.config.etapa_crecimiento,
-            humedad_actual, zona.config.humedad_minima,
+
+        pronostico = self.proveedor_clima.obtener_pronostico(
+            cultivo.localidad
         )
 
-        if not zona.necesita_riego():
-            logger.info("Cultivo '%s': humedad suficiente, no se riega.", zona.cultivo.codigo)
-            return
+        # ----------------------------------------------------
+        # REVISIÓN DE LLUVIA
+        # ----------------------------------------------------
 
-        factor_ajuste = self._factor_ajuste_por_lluvia_leve(pronostico)
-        self._regar_zona(zona, humedad_actual, factor_ajuste)
+        if (
+            pronostico.probabilidad_lluvia
+            >= PROBABILIDAD_LLUVIA_POSTERGA
+            and
+            pronostico.milimetros_lluvia
+            >= MM_LLUVIA_POSTERGA
+        ):
 
-    def _factor_ajuste_por_lluvia_leve(self, pronostico: PronosticoClima) -> float:
-        if pronostico.probabilidad_lluvia >= 0.3:
-            return 0.7
-        return 1.0
+            return {
+                "codigo": cultivo.codigo,
+                "nombre": cultivo.nombre,
+                "humedad": humedad_actual,
+                "estado": "lluvia",
+                "mensaje": (
+                    "Se pospone el riego porque "
+                    "se espera lluvia."
+                ),
+                "probabilidad_lluvia": round(
+                    pronostico.probabilidad_lluvia * 100,
+                    1
+                ),
+                "milimetros_lluvia": round(
+                    pronostico.milimetros_lluvia,
+                    1
+                )
+            }
 
-    def _regar_zona(self, zona: ZonaRiego, humedad_actual: float, factor_ajuste: float) -> None:
-        deficit = zona.config.humedad_objetivo - humedad_actual
-        minutos_estimados = min(
-            zona.config.duracion_maxima_riego_min,
-            max(1, round((deficit / 2.0) * factor_ajuste)),
+        # ----------------------------------------------------
+        # NO NECESITA RIEGO
+        # ----------------------------------------------------
+
+        if not zona.necesita_riego(humedad_actual):
+
+            return {
+                "codigo": cultivo.codigo,
+                "nombre": cultivo.nombre,
+                "humedad": humedad_actual,
+                "estado": "correcto",
+                "mensaje": (
+                    "La humedad es suficiente. "
+                    "No necesita riego."
+                ),
+                "probabilidad_lluvia": round(
+                    pronostico.probabilidad_lluvia * 100,
+                    1
+                ),
+                "milimetros_lluvia": round(
+                    pronostico.milimetros_lluvia,
+                    1
+                )
+            }
+
+        # ----------------------------------------------------
+        # CALCULAR RIEGO
+        # ----------------------------------------------------
+
+        humedad_objetivo = zona.configuracion.humedad_objetivo
+
+        diferencia = humedad_objetivo - humedad_actual
+
+        if diferencia <= 0:
+
+            return {
+                "codigo": cultivo.codigo,
+                "nombre": cultivo.nombre,
+                "humedad": humedad_actual,
+                "estado": "correcto",
+                "mensaje": "No necesita riego."
+            }
+
+        # Factor de reducción si existe posibilidad
+        # moderada de lluvia.
+        factor_lluvia = 1.0
+
+        if pronostico.probabilidad_lluvia >= 0.30:
+
+            factor_lluvia = 0.70
+
+        # Cantidad de agua aproximada
+        litros_por_ha = (
+            diferencia * 2 * factor_lluvia
         )
 
-        logger.info("Cultivo '%s': iniciando riego por %d min (factor clima=%.1f)",
-                    zona.cultivo.codigo, minutos_estimados, factor_ajuste)
+        litros_totales = (
+            litros_por_ha
+            * cultivo.tamano_parcela
+        )
+
+        caudal_total = (
+            zona.configuracion.caudal
+            * cultivo.tamano_parcela
+        )
+
+        if caudal_total <= 0:
+
+            caudal_total = 1
+
+        minutos = litros_totales / caudal_total
+
+        minutos = max(1, minutos)
+
+        minutos = min(
+            minutos,
+            zona.configuracion.duracion_maxima
+        )
+
+        litros_estimados = (
+            caudal_total * minutos
+        )
+
+        # ----------------------------------------------------
+        # REALIZAR RIEGO
+        # ----------------------------------------------------
+
         zona.valvula.abrir()
 
-        litros = round(minutos_estimados * zona.config.caudal_litros_min, 1)
-        zona.sensor.registrar_riego(incremento=deficit * factor_ajuste)
+        humedad_despues = zona.sensor.registrar_riego(
+            minutos,
+            zona.configuracion.caudal
+        )
 
         zona.valvula.cerrar()
 
-        zona.historial.append(RegistroRiego(
-            momento=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            litros_estimados=litros,
-            motivo="humedad por debajo del mínimo",
-        ))
+        registro = RegistroRiego(
+            fecha_hora=datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            litros_estimados=round(
+                litros_estimados,
+                2
+            ),
+            motivo=(
+                "Humedad por debajo del mínimo."
+            )
+        )
 
-        logger.info("Cultivo '%s': riego finalizado. Litros estimados: %.1f, humedad final: %.1f%%",
-                    zona.cultivo.codigo, litros, zona.sensor.leer())
+        zona.historial.append(registro)
 
+        self.gestor_riego.guardar()
 
-# ============================================================
-# ENTRADA DE DATOS (validaciones para el registro de cultivos)
-# ============================================================
-
-def pedir_texto_obligatorio(mensaje: str) -> str:
-    while True:
-        valor = input(mensaje).strip()
-        if valor == "":
-            print("  Este dato es obligatorio, no puede quedar vacío. Intenta de nuevo.")
-        else:
-            return valor
-
-
-def pedir_fecha_valida(mensaje: str) -> str:
-    while True:
-        valor = input(mensaje).strip()
-        try:
-            datetime.strptime(valor, "%Y-%m-%d")
-            return valor
-        except ValueError:
-            print("  Fecha inválida. Debe tener el formato AAAA-MM-DD, ejemplo: 2026-08-19. Intenta de nuevo.")
-
-
-def pedir_numero_positivo(mensaje: str) -> float:
-    while True:
-        valor = input(mensaje).strip()
-        try:
-            numero = float(valor)
-            if numero <= 0:
-                print("  El tamaño debe ser mayor a 0. Intenta de nuevo.")
-            else:
-                return numero
-        except ValueError:
-            print("  Eso no es un número válido. Escribe solo el número, ejemplo: 2.5. Intenta de nuevo.")
-
-
-def normalizar_codigo(texto: str) -> str:
-    """Acepta el código en varias formas ('CULT001', 'cult1', '001', '1') y lo normaliza."""
-    texto = texto.strip().upper()
-    if texto.startswith("CULT"):
-        texto = texto[4:]
-    if texto.isdigit():
-        return f"CULT{int(texto):03d}"
-    return texto
-
-
-# ============================================================
-# MENÚ PRINCIPAL
-# ============================================================
-
-gestor = GestorRiego()
-
-
-def registrar_cultivo():
-    print("\n--- Registrar nuevo cultivo ---")
-    nombre = pedir_texto_obligatorio("Nombre del cultivo (ej. Maíz parcela 5): ")
-    tipo = pedir_texto_obligatorio("Tipo de cultivo (ej. Maíz, Frijol, Café): ")
-    tipo_tierra = pedir_texto_obligatorio("Tipo de tierra (ej. Arcillosa, Arenosa): ")
-    localidad = pedir_texto_obligatorio("Localidad (ej. Chimaltenango): ")
-    numero_parcela = pedir_texto_obligatorio("Número de parcela (ej. 3): ")
-    tamano_parcela = pedir_numero_positivo("Tamaño de la parcela en hectáreas (ej. 2.5): ")
-    fecha_siembra = pedir_fecha_valida("Fecha de siembra (formato AAAA-MM-DD, ej. 2026-08-19): ")
-
-    cultivo = Cultivo(
-        codigo=gestor.generar_codigo(),
-        nombre=nombre,
-        tipo=tipo,
-        tipo_tierra=tipo_tierra,
-        localidad=localidad,
-        numero_parcela=numero_parcela,
-        tamano_parcela=tamano_parcela,
-        fecha_siembra=fecha_siembra,
-    )
-    zona = gestor.registrar_cultivo(cultivo)
-
-    print(f"\nCultivo registrado: {cultivo.codigo}")
-    print(f"Configuración de riego calculada -> humedad mínima: {zona.config.humedad_minima}%, "
-          f"objetivo: {zona.config.humedad_objetivo}%, etapa: {zona.config.etapa_crecimiento}, "
-          f"caudal: {zona.config.caudal_litros_min} L/min")
-
-
-def ver_cultivos():
-    if not gestor.zonas:
-        print("\nNo hay cultivos registrados todavía.\n")
-        return
-    print("\n--- Cultivos y su estado de riego ---")
-    gestor.recalcular_configuraciones()
-    for zona in gestor.zonas.values():
-        print(zona)
-    print()
-
-
-def buscar_cultivo():
-    print("\n--- Buscar cultivo por código ---")
-    codigo = normalizar_codigo(input("Escribe el código (ej. CULT001, cult1 o 001): "))
-    zona = gestor.buscar_por_codigo(codigo)
-    if zona:
-        print(f"\n{zona.cultivo}")
-        print(zona)
-    else:
-        print("No se encontró ningún cultivo con ese código.")
-
-
-def eliminar_cultivo():
-    print("\n--- Eliminar un cultivo ---")
-    codigo = normalizar_codigo(input("Escribe el código del cultivo a eliminar: "))
-    zona = gestor.buscar_por_codigo(codigo)
-    if zona is None:
-        print("No existe ningún cultivo con ese código.")
-        return
-
-    print(f"Cultivo encontrado: {zona.cultivo}")
-    confirmacion = input("¿Seguro que quieres eliminarlo? Escribe 'sí' para confirmar: ").strip().lower()
-    if confirmacion in ("sí", "si"):
-        gestor.eliminar_cultivo(codigo)
-        print("Cultivo eliminado correctamente.")
-    else:
-        print("Operación cancelada, el cultivo NO fue eliminado.")
-
-
-def revisar_y_regar():
-    controlador = ControladorRiego(gestor=gestor, proveedor_clima=PROVEEDOR_CLIMA)
-    print(f"\nRevisando {len(gestor.zonas)} cultivo(s)...")
-    controlador.revisar_y_regar_todas()
-    print("Revisión finalizada.\n")
-
-
-def ver_historial():
-    print("\n--- Historial de riego por cultivo ---")
-    if not gestor.zonas:
-        print("No hay cultivos registrados todavía.\n")
-        return
-    for zona in gestor.zonas.values():
-        if not zona.historial:
-            continue
-        print(f"\n{zona.cultivo.codigo} - {zona.cultivo.nombre}:")
-        for evento in zona.historial:
-            print(f"  - {evento.momento} | {evento.litros_estimados} L | {evento.motivo}")
-    print()
-
-
-def mostrar_menu():
-    while True:
-        print("\n===== Sistema de Riego Inteligente =====")
-        print("1. Registrar un cultivo nuevo")
-        print("2. Ver todos los cultivos y su estado de riego")
-        print("3. Buscar un cultivo por código")
-        print("4. Revisar y ejecutar riego (todos los cultivos)")
-        print("5. Ver historial de riego")
-        print("6. Eliminar un cultivo")
-        print("7. Salir")
-
-        opcion = input("Elige una opción (1-7): ").strip()
-
-        if opcion == "1":
-            registrar_cultivo()
-        elif opcion == "2":
-            ver_cultivos()
-        elif opcion == "3":
-            buscar_cultivo()
-        elif opcion == "4":
-            revisar_y_regar()
-        elif opcion == "5":
-            ver_historial()
-        elif opcion == "6":
-            eliminar_cultivo()
-        elif opcion == "7":
-            print("¡Hasta luego!")
-            break
-        else:
-            print("Opción no válida, intenta de nuevo.")
-
-
-if __name__ == "__main__":
-    mostrar_menu()
+        return {
+            "codigo": cultivo.codigo,
+            "nombre": cultivo.nombre,
+            "humedad": humedad_actual,
+            "humedad_despues": humedad_despues,
+            "estado": "regado",
+            "mensaje": (
+                "Se realizó el riego "
+                "automáticamente."
+            ),
+            "minutos": round(minutos, 1),
+            "litros": round(litros_estimados, 1),
+            "probabilidad_lluvia": round(
+                pronostico.probabilidad_lluvia * 100,
+                1
+            ),
+            "milimetros_lluvia": round(
+                pronostico.milimetros_lluvia,
+                1
+            )
+        }
