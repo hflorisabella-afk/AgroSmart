@@ -21,15 +21,15 @@ class Clima:
         sequia = self.probabilidad_lluvia < 30 and self.temperatura >= 30
 
         if lluvia_fuerte and calor_extremo:
-            return "⚠️ Alerta doble: lluvias fuertes y temperatura muy alta. Protege tus cultivos."
+            return "️ Alerta doble: lluvias fuertes y temperatura muy alta. Protege tus cultivos."
         elif lluvia_fuerte:
-            return "🌧️ Alerta: se esperan lluvias fuertes."
+            return " Alerta: se esperan lluvias fuertes."
         elif calor_extremo:
-            return "☀️ Alerta: temperatura muy alta, revisa tus cultivos."
+            return "️ Alerta: temperatura muy alta, revisa tus cultivos."
         elif sequia:
-            return "🌵 Alerta: poca probabilidad de lluvia y calor alto, considera regar tus plantas."
+            return " Alerta: poca probabilidad de lluvia y calor alto, considera regar tus plantas."
         else:
-            return "✅ Sin alertas por ahora."
+            return " Sin alertas por ahora."
 
     def necesita_riego(self):
         return self.temperatura >= 30 and self.probabilidad_lluvia < 30
