@@ -5,6 +5,8 @@
 
 import requests
 import time
+from modelos.ordenamiento_clima import merge_sort
+
 
 
 class Clima:
@@ -205,7 +207,6 @@ def generar_pronostico(lista_climas):
         resumen.append(f"{clima_dia} -> {clima_dia.generar_alerta()}")
     return "\n".join(resumen)
 
-
 # --- Zona de prueba ---
 if __name__ == "__main__":
     localidad = input("¿En qué localidad está tu cultivo? ").strip()
@@ -224,3 +225,13 @@ if __name__ == "__main__":
     pronostico = obtener_pronostico_dias(localidad, dias=5)
     if pronostico:
         print(generar_pronostico(pronostico))
+
+        print()
+        print("--- Pronostico ordenado por temperatura (Merge Sort) ---")
+        for dia in merge_sort(pronostico, clave="temperatura"):
+            print(dia)
+
+        print()
+        print("--- Pronostico ordenado por probabilidad de lluvia (Merge Sort) ---")
+        for dia in merge_sort(pronostico, clave="probabilidad_lluvia"):
+            print(dia)
