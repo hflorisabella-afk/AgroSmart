@@ -1,87 +1,219 @@
-# pantalla_clima.py
-# Pantalla visual de AgroSmart para el módulo de Clima.
-# Los cultivos se obtienen desde GestorCultivos.
-# La localidad se toma automáticamente del cultivo seleccionado.
+from kivy.graphics import Color, RoundedRectangle
+from kivy.metrics import dp
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+from kivy.uix.scrollview import ScrollView
+from kivy.clock import Clock
 
-import sys
 import os
+import sys
+
+# ============================================================
+# IMPORTAR MODELOS
+# ============================================================
 
 sys.path.append(
     os.path.join(os.path.dirname(__file__), "..", "modelos")
 )
 
 from gestor_cultivos import GestorCultivos
+
+# Importar funciones del módulo clima
+sys.path.append(
+    os.path.join(os.path.dirname(__file__), "..", "clima")
+)
+
 from clima import (
     obtener_clima_actual,
     obtener_pronostico_dias
 )
-
-from kivy.app import App
-from kivy.core.window import Window
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.uix.scrollview import ScrollView
-
 
 
 # ============================================================
 # COLORES
 # ============================================================
 
-COLOR_FONDO = (0.05, 0.08, 0.14, 1)
+COLOR_FONDO = (0.08, 0.12, 0.18, 1)
 
-COLOR_AZUL_BOTON = (0.18, 0.42, 0.65, 1)
-COLOR_AZUL_CLARO = (0.55, 0.78, 0.95, 1)
+COLOR_AZUL_PRINCIPAL = (0.30, 0.52, 0.72, 1)
+COLOR_AZUL_CLARO = (0.65, 0.82, 0.95, 1)
 
-COLOR_TEXTO_CLARO = (0.92, 0.95, 0.98, 1)
+COLOR_TEXTO = (0.94, 0.96, 0.98, 1)
+COLOR_TEXTO_SECUNDARIO = (0.68, 0.74, 0.80, 1)
+
+COLOR_TARJETA = (0.13, 0.20, 0.28, 1)
+COLOR_TARJETA_CLARA = (0.19, 0.28, 0.38, 1)
+
+COLOR_EXITO = (0.55, 0.85, 0.65, 1)
+COLOR_ERROR = (1, 0.55, 0.50, 1)
 COLOR_INFO = (0.55, 0.78, 0.95, 1)
-COLOR_ERROR = (1, 0.55, 0.5, 1)
-COLOR_EXITO = (0.55, 0.9, 0.65, 1)
 
-COLOR_TARJETA = (0.10, 0.18, 0.28, 1)
-
-# Compatibilidad con partes anteriores del código
+# Compatibilidad con app_principal.py
+COLOR_AZUL_BOTON = COLOR_AZUL_PRINCIPAL
+COLOR_VERDE_PRINCIPAL = COLOR_AZUL_PRINCIPAL
 COLOR_VERDE_CLARO = COLOR_AZUL_CLARO
-COLOR_VERDE_PRINCIPAL = COLOR_AZUL_BOTON
-
-
-Window.clearcolor = COLOR_FONDO
-Window.size = (780, 850)
 
 
 # ============================================================
-# GESTOR PRINCIPAL DE CULTIVOS
+# GESTOR DE CULTIVOS
 # ============================================================
 
 gestor_cultivos = GestorCultivos()
 
 
 # ============================================================
-# BOTÓN
+# BOTÓN REDONDEADO
 # ============================================================
 
 def boton_estilizado(
     texto,
-    alto=45,
-    color_fondo=None
+    color=COLOR_AZUL_PRINCIPAL,
+    altura=48
 ):
 
     boton = Button(
         text=texto,
         size_hint_y=None,
-        height=alto,
+        height=dp(altura),
         background_normal="",
-        background_color=(
-            color_fondo
-            if color_fondo
-            else COLOR_VERDE_PRINCIPAL
-        ),
-        color=(1, 1, 1, 1),
+        background_down="",
+        background_color=(0, 0, 0, 0),
+        color=COLOR_TEXTO,
         bold=True
     )
 
+    with boton.canvas.before:
+
+        Color(*color)
+
+        boton.rectangulo = RoundedRectangle(
+            pos=boton.pos,
+            size=boton.size,
+            radius=[dp(12)]
+        )
+
+    def actualizar_fondo(instance, value):
+
+        boton.rectangulo.pos = boton.pos
+        boton.rectangulo.size = boton.size
+
+    boton.bind(
+        pos=actualizar_fondo,
+        size=actualizar_fondo
+    )
+
     return boton
+
+
+# ============================================================
+# TARJETA DE CULTIVO
+# ============================================================
+
+class TarjetaCultivo(BoxLayout):
+
+    def __init__(self, cultivo, seleccionado=False, **kwargs):
+
+        super().__init__(
+            orientation="vertical",
+            spacing=dp(3),
+            padding=[
+                dp(18),
+                dp(10),
+                dp(18),
+                dp(10)
+            ],
+            size_hint_y=None,
+            height=dp(82),
+            **kwargs
+        )
+
+        self.cultivo = cultivo
+
+        # ----------------------------------------------------
+        # FONDO
+        # ----------------------------------------------------
+
+        color_tarjeta = (
+            COLOR_TARJETA_CLARA
+            if seleccionado
+            else COLOR_TARJETA
+        )
+
+        with self.canvas.before:
+
+            Color(*color_tarjeta)
+
+            self.rectangulo = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(14)]
+            )
+
+        self.bind(
+            pos=self.actualizar_fondo,
+            size=self.actualizar_fondo
+        )
+
+        # ----------------------------------------------------
+        # NOMBRE
+        # ----------------------------------------------------
+
+        nombre = Label(
+            text=cultivo.nombre,
+            color=COLOR_TEXTO,
+            font_size="16sp",
+            bold=True,
+            size_hint_y=None,
+            height=dp(30),
+            halign="left",
+            valign="middle"
+        )
+
+        nombre.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.add_widget(nombre)
+
+        # ----------------------------------------------------
+        # INFORMACIÓN
+        # ----------------------------------------------------
+
+        informacion = Label(
+            text=(
+                f"{cultivo.tipo}  •  "
+                f"{cultivo.localidad}  •  "
+                f"Parcela {cultivo.numero_parcela}"
+            ),
+            color=COLOR_TEXTO_SECUNDARIO,
+            font_size="13sp",
+            size_hint_y=None,
+            height=dp(25),
+            halign="left",
+            valign="middle"
+        )
+
+        informacion.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.add_widget(informacion)
+
+    def actualizar_fondo(self, instance, value):
+
+        self.rectangulo.pos = self.pos
+        self.rectangulo.size = self.size
 
 
 # ============================================================
@@ -94,224 +226,279 @@ class PantallaClima(ScrollView):
 
         super().__init__(**kwargs)
 
+        self.do_scroll_x = False
+
         self.cultivo_seleccionado = None
 
-        contenido = BoxLayout(
+        # ====================================================
+        # CONTENEDOR PRINCIPAL
+        # ====================================================
+
+        self.contenedor = BoxLayout(
             orientation="vertical",
-            size_hint_y=None,
-            padding=15,
-            spacing=10
+            spacing=dp(12),
+            padding=[
+                dp(20),
+                dp(20),
+                dp(20),
+                dp(30)
+            ],
+            size_hint_y=None
         )
 
-        contenido.bind(
-            minimum_height=contenido.setter("height")
+        self.contenedor.bind(
+            minimum_height=self.contenedor.setter(
+                "height"
+            )
         )
 
-        self.add_widget(contenido)
+        self.add_widget(
+            self.contenedor
+        )
 
-        # ----------------------------------------------------
+        # ====================================================
         # TÍTULO
-        # ----------------------------------------------------
+        # ====================================================
 
         titulo = Label(
-            text="AgroSmart - Clima",
-            font_size=24,
+            text="CLIMA",
+            color=COLOR_AZUL_CLARO,
+            font_size="28sp",
             bold=True,
             size_hint_y=None,
-            height=45,
-            color=COLOR_VERDE_CLARO
+            height=dp(45)
         )
 
-        contenido.add_widget(titulo)
+        self.contenedor.add_widget(
+            titulo
+        )
 
-        # ----------------------------------------------------
-        # INFORMACIÓN
-        # ----------------------------------------------------
-
-        informacion = Label(
-            text=(
-                "Selecciona un cultivo para consultar "
-                "el clima de su localidad."
-            ),
+        subtitulo = Label(
+            text="Consulta el clima de tus cultivos",
+            color=COLOR_TEXTO_SECUNDARIO,
+            font_size="14sp",
             size_hint_y=None,
-            height=45,
-            font_size=15,
-            color=COLOR_TEXTO_CLARO
+            height=dp(35)
         )
 
-        contenido.add_widget(informacion)
+        self.contenedor.add_widget(
+            subtitulo
+        )
 
-        # ----------------------------------------------------
-        # MENSAJE
-        # ----------------------------------------------------
+        # ====================================================
+        # TUS CULTIVOS
+        # ====================================================
 
-        self.mensaje = Label(
-            text="",
+        titulo_cultivos = Label(
+            text="TUS CULTIVOS",
+            color=COLOR_TEXTO,
+            font_size="18sp",
+            bold=True,
             size_hint_y=None,
-            height=40,
-            font_size=15,
-            color=COLOR_INFO
+            height=dp(35),
+            halign="left",
+            valign="middle"
         )
 
-        contenido.add_widget(self.mensaje)
-
-        # ----------------------------------------------------
-        # CULTIVO SELECCIONADO
-        # ----------------------------------------------------
-
-        self.cultivo_info = Label(
-            text="Ningún cultivo seleccionado.",
-            size_hint_y=None,
-            height=60,
-            font_size=16,
-            color=COLOR_VERDE_CLARO,
-            bold=True
+        titulo_cultivos.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
         )
 
-        contenido.add_widget(
-            self.cultivo_info
+        self.contenedor.add_widget(
+            titulo_cultivos
         )
 
         # ----------------------------------------------------
         # LISTA DE CULTIVOS
         # ----------------------------------------------------
 
-        contenido.add_widget(
-            Label(
-                text="Cultivos registrados:",
-                size_hint_y=None,
-                height=35,
-                font_size=17,
-                color=COLOR_VERDE_CLARO,
-                bold=True
-            )
-        )
-
         self.lista_cultivos = BoxLayout(
             orientation="vertical",
-            size_hint_y=None,
-            spacing=8,
-            padding=[0, 5]
+            spacing=dp(10),
+            size_hint_y=None
         )
 
-        self.lista_cultivos.bind(
-            minimum_height=self.lista_cultivos.setter(
-                "height"
-            )
-        )
-
-        contenido.add_widget(
+        self.contenedor.add_widget(
             self.lista_cultivos
         )
 
-        # ----------------------------------------------------
+        # ====================================================
         # BOTONES DE CLIMA
-        # ----------------------------------------------------
+        # ====================================================
 
         fila_botones = BoxLayout(
             orientation="horizontal",
+            spacing=dp(10),
             size_hint_y=None,
-            height=45,
-            spacing=10
+            height=dp(52)
         )
 
-        boton_actual = boton_estilizado(
-            "Ver clima actual"
+        self.boton_actual = boton_estilizado(
+            "Clima actual"
         )
 
-        boton_actual.bind(
-            on_press=self.ver_clima_actual
+        self.boton_actual.bind(
+            on_release=self.ver_clima_actual
         )
 
-        fila_botones.add_widget(
-            boton_actual
+        self.boton_pronostico = boton_estilizado(
+            "Pronóstico 5 días"
         )
 
-        boton_pronostico = boton_estilizado(
-            "Ver pronóstico (5 días)"
-        )
-
-        boton_pronostico.bind(
-            on_press=self.ver_pronostico
+        self.boton_pronostico.bind(
+            on_release=self.ver_pronostico
         )
 
         fila_botones.add_widget(
-            boton_pronostico
+            self.boton_actual
         )
 
-        contenido.add_widget(
+        fila_botones.add_widget(
+            self.boton_pronostico
+        )
+
+        self.contenedor.add_widget(
             fila_botones
         )
 
-        # ----------------------------------------------------
-        # RESULTADO ACTUAL
-        # ----------------------------------------------------
+        # ====================================================
+        # SEPARADOR
+        # ====================================================
 
-        contenido.add_widget(
-            Label(
-                text="Clima actual:",
-                size_hint_y=None,
-                height=35,
-                font_size=17,
-                color=COLOR_VERDE_CLARO,
-                bold=True
+        separador = BoxLayout(
+            size_hint_y=None,
+            height=dp(2)
+        )
+
+        with separador.canvas.before:
+
+            Color(*COLOR_AZUL_PRINCIPAL)
+
+            separador.rectangulo = RoundedRectangle(
+                pos=separador.pos,
+                size=separador.size,
+                radius=[dp(1)]
+            )
+
+        separador.bind(
+            pos=lambda instance, value:
+            setattr(
+                separador.rectangulo,
+                "pos",
+                separador.pos
+            ),
+            size=lambda instance, value:
+            setattr(
+                separador.rectangulo,
+                "size",
+                separador.size
             )
         )
 
-        self.resultado_actual = Label(
-            text="Selecciona un cultivo.",
+        self.contenedor.add_widget(
+            separador
+        )
+
+        # ====================================================
+        # INFORMACIÓN DEL CLIMA
+        # ====================================================
+
+        titulo_resultado = Label(
+            text="INFORMACIÓN DEL CLIMA",
+            color=COLOR_TEXTO,
+            font_size="18sp",
+            bold=True,
             size_hint_y=None,
-            height=130,
-            font_size=15,
-            color=COLOR_TEXTO_CLARO,
+            height=dp(45),
             halign="left",
-            valign="top"
+            valign="middle"
         )
 
-        self.resultado_actual.bind(
-            size=lambda inst, val:
-            setattr(inst, "text_size", val)
-        )
-
-        contenido.add_widget(
-            self.resultado_actual
-        )
-
-        # ----------------------------------------------------
-        # PRONÓSTICO
-        # ----------------------------------------------------
-
-        contenido.add_widget(
-            Label(
-                text="Pronóstico:",
-                size_hint_y=None,
-                height=35,
-                font_size=17,
-                color=COLOR_VERDE_CLARO,
-                bold=True
+        titulo_resultado.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
             )
         )
 
-        self.resultado_pronostico = Label(
-            text="Todavía no hay pronóstico.",
+        self.contenedor.add_widget(
+            titulo_resultado
+        )
+
+        # ----------------------------------------------------
+        # CONTENEDOR DE RESULTADOS
+        # ----------------------------------------------------
+
+        self.resultado = BoxLayout(
+            orientation="vertical",
+            spacing=dp(8),
+            padding=[
+                dp(15),
+                dp(15),
+                dp(15),
+                dp(15)
+            ],
             size_hint_y=None,
-            height=250,
-            font_size=15,
-            color=COLOR_TEXTO_CLARO,
-            halign="left",
-            valign="top"
+            height=dp(260)
         )
 
-        self.resultado_pronostico.bind(
-            size=lambda inst, val:
-            setattr(inst, "text_size", val)
+        with self.resultado.canvas.before:
+
+            Color(*COLOR_TARJETA)
+
+            self.resultado.rectangulo = RoundedRectangle(
+                pos=self.resultado.pos,
+                size=self.resultado.size,
+                radius=[dp(14)]
+            )
+
+        self.resultado.bind(
+            pos=self.actualizar_fondo_resultado,
+            size=self.actualizar_fondo_resultado
         )
 
-        contenido.add_widget(
-            self.resultado_pronostico
+        self.contenedor.add_widget(
+            self.resultado
         )
 
-        self.actualizar_lista()
+        # ====================================================
+        # MENSAJE INICIAL
+        # ====================================================
+
+        self.mostrar_mensaje(
+            "Selecciona un cultivo para consultar el clima."
+        )
+
+        # Cargar cultivos
+        Clock.schedule_once(
+            lambda dt: self.actualizar_lista(),
+            0
+        )
+
+    # ========================================================
+    # ACTUALIZAR FONDO RESULTADO
+    # ========================================================
+
+    def actualizar_fondo_resultado(
+        self,
+        instance,
+        value
+    ):
+
+        self.resultado.rectangulo.pos = (
+            self.resultado.pos
+        )
+
+        self.resultado.rectangulo.size = (
+            self.resultado.size
+        )
 
     # ========================================================
     # ACTUALIZAR LISTA
@@ -321,95 +508,134 @@ class PantallaClima(ScrollView):
 
         self.lista_cultivos.clear_widgets()
 
-        global gestor_cultivos
+        # Crear nuevamente el gestor para obtener
+        # los cultivos guardados actualmente.
+        gestor = GestorCultivos()
 
-        # Volvemos a leer el archivo principal.
-        gestor_cultivos = GestorCultivos()
+        cultivos = gestor.lista_cultivos
 
-        if len(
-            gestor_cultivos.lista_cultivos
-        ) == 0:
+        # ----------------------------------------------------
+        # SI NO HAY CULTIVOS
+        # ----------------------------------------------------
 
-            self.lista_cultivos.add_widget(
-                Label(
-                    text=(
-                        "No hay cultivos registrados. "
-                        "Primero registra uno en "
-                        "Registro de Cultivos."
-                    ),
-                    size_hint_y=None,
-                    height=50,
-                    color=COLOR_TEXTO_CLARO
+        if not cultivos:
+
+            mensaje = Label(
+                text=(
+                    "No hay cultivos registrados "
+                    "todavía."
+                ),
+                color=COLOR_TEXTO_SECUNDARIO,
+                font_size="14sp",
+                size_hint_y=None,
+                height=dp(60),
+                halign="center",
+                valign="middle"
+            )
+
+            mensaje.bind(
+                size=lambda instance, value:
+                setattr(
+                    instance,
+                    "text_size",
+                    value
                 )
             )
 
+            self.lista_cultivos.add_widget(
+                mensaje
+            )
+
+            self.lista_cultivos.height = dp(60)
+
             return
 
-        # ----------------------------------------------------
-        # CREAR BOTÓN PARA CADA CULTIVO
-        # ----------------------------------------------------
+        # ====================================================
+        # CREAR TARJETAS
+        # ====================================================
 
-        for cultivo in gestor_cultivos.lista_cultivos:
+        for cultivo in cultivos:
 
-            boton = Button(
-                text=(
-                    f"{cultivo.codigo} - "
-                    f"{cultivo.nombre}\n"
-                    f"Localidad: "
-                    f"{cultivo.localidad} | "
-                    f"Tipo: {cultivo.tipo}"
-                ),
-                size_hint_y=None,
-                height=65,
-                halign="left",
-                valign="middle",
-                background_normal="",
-                background_color=COLOR_TARJETA,
-                color=COLOR_TEXTO_CLARO
+            tarjeta = TarjetaCultivo(
+                cultivo,
+                seleccionado=(
+                    self.cultivo_seleccionado is not None
+                    and
+                    self.cultivo_seleccionado.codigo
+                    == cultivo.codigo
+                )
             )
 
-            boton.bind(
-                size=lambda inst, val:
-                setattr(inst, "text_size", val)
-            )
-
-            boton.bind(
-                on_press=lambda inst,
+            # Toda la tarjeta es seleccionable
+            tarjeta.bind(
+                on_touch_up=lambda instance, touch,
                 cultivo=cultivo:
-                self.seleccionar_cultivo(cultivo)
+                self.seleccionar_desde_touch(
+                    instance,
+                    touch,
+                    cultivo
+                )
             )
 
             self.lista_cultivos.add_widget(
-                boton
+                tarjeta
             )
+
+        # Altura explícita para que las tarjetas
+        # no se superpongan.
+        cantidad = len(cultivos)
+
+        self.lista_cultivos.height = (
+            cantidad * dp(82)
+            +
+            max(0, cantidad - 1) * dp(10)
+        )
+
+        self.contenedor.do_layout()
+
+    # ========================================================
+    # SELECCIONAR CULTIVO DESDE TARJETA
+    # ========================================================
+
+    def seleccionar_desde_touch(
+        self,
+        instance,
+        touch,
+        cultivo
+    ):
+
+        if instance.collide_point(
+            *touch.pos
+        ):
+
+            self.seleccionar_cultivo(
+                cultivo
+            )
+
+            return True
+
+        return False
 
     # ========================================================
     # SELECCIONAR CULTIVO
     # ========================================================
 
-    def seleccionar_cultivo(self, cultivo):
+    def seleccionar_cultivo(
+        self,
+        cultivo
+    ):
 
         self.cultivo_seleccionado = cultivo
 
-        self.cultivo_info.text = (
-            f"Seleccionado: {cultivo.nombre}\n"
-            f"Localidad: {cultivo.localidad}"
+        self.mostrar_mensaje(
+            (
+                f"Cultivo seleccionado: "
+                f"{cultivo.nombre}\n"
+                f"Localidad: {cultivo.localidad}"
+            )
         )
 
-        self.mensaje.color = COLOR_INFO
-
-        self.mensaje.text = (
-            "Cultivo seleccionado. "
-            "Ahora puedes consultar su clima."
-        )
-
-        self.resultado_actual.text = (
-            "Presiona 'Ver clima actual'."
-        )
-
-        self.resultado_pronostico.text = (
-            "Presiona 'Ver pronóstico (5 días)'."
-        )
+        self.actualizar_lista()
 
     # ========================================================
     # OBTENER LOCALIDAD
@@ -418,12 +644,6 @@ class PantallaClima(ScrollView):
     def obtener_localidad(self):
 
         if self.cultivo_seleccionado is None:
-
-            self.mensaje.color = COLOR_ERROR
-
-            self.mensaje.text = (
-                "Primero selecciona un cultivo."
-            )
 
             return None
 
@@ -435,119 +655,450 @@ class PantallaClima(ScrollView):
     # CLIMA ACTUAL
     # ========================================================
 
-    def ver_clima_actual(
-        self,
-        instancia_boton
-    ):
+    def ver_clima_actual(self, instance):
+
+        if self.cultivo_seleccionado is None:
+
+            self.mostrar_mensaje(
+                "Primero selecciona un cultivo."
+            )
+
+            return
 
         localidad = self.obtener_localidad()
 
-        if localidad is None:
+        if not localidad:
+
+            self.mostrar_mensaje(
+                "El cultivo no tiene localidad."
+            )
+
             return
+
+        self.mostrar_mensaje(
+            "Consultando clima actual..."
+        )
 
         try:
 
-            resultado = obtener_clima_actual(
+            clima = obtener_clima_actual(
                 localidad
             )
 
-            self.resultado_actual.text = (
-                str(resultado)
-            )
-
-            self.mensaje.color = COLOR_EXITO
-
-            self.mensaje.text = (
-                f"Clima consultado para "
-                f"{localidad}."
+            self.mostrar_clima_actual(
+                clima
             )
 
         except Exception as error:
 
-            self.mensaje.color = COLOR_ERROR
-
-            self.mensaje.text = (
-                "No fue posible consultar el clima."
+            self.mostrar_error(
+                f"No se pudo obtener el clima:\n"
+                f"{error}"
             )
 
-            self.resultado_actual.text = (
-                f"Error: {error}"
+    # ========================================================
+    # MOSTRAR CLIMA ACTUAL
+    # ========================================================
+
+    def mostrar_clima_actual(
+        self,
+        clima
+    ):
+
+        self.resultado.clear_widgets()
+
+        if clima is None:
+
+            self.mostrar_error(
+                "No se pudo obtener el clima."
             )
+
+            return
+
+        # ====================================================
+        # LOCALIDAD
+        # ====================================================
+
+        localidad = Label(
+            text=f"Localidad: {clima.localidad}",
+            color=COLOR_AZUL_CLARO,
+            font_size="19sp",
+            bold=True,
+            size_hint_y=None,
+            height=dp(38),
+            halign="left",
+            valign="middle"
+        )
+
+        localidad.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado.add_widget(
+            localidad
+        )
+
+        # ====================================================
+        # TEMPERATURA
+        # ====================================================
+
+        temperatura = Label(
+            text=(
+                f"Temperatura: "
+                f"{clima.temperatura} °C"
+            ),
+            color=COLOR_TEXTO,
+            font_size="17sp",
+            size_hint_y=None,
+            height=dp(35),
+            halign="left",
+            valign="middle"
+        )
+
+        temperatura.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado.add_widget(
+            temperatura
+        )
+
+        # ====================================================
+        # LLUVIA
+        # ====================================================
+
+        lluvia = Label(
+            text=(
+                f"Probabilidad de lluvia: "
+                f"{clima.probabilidad_lluvia}%"
+            ),
+            color=COLOR_TEXTO,
+            font_size="16sp",
+            size_hint_y=None,
+            height=dp(35),
+            halign="left",
+            valign="middle"
+        )
+
+        lluvia.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado.add_widget(
+            lluvia
+        )
+
+        # ====================================================
+        # DESCRIPCIÓN
+        # ====================================================
+
+        descripcion = Label(
+            text=(
+                f"Condición: "
+                f"{clima.descripcion}"
+            ),
+            color=COLOR_TEXTO_SECUNDARIO,
+            font_size="15sp",
+            size_hint_y=None,
+            height=dp(35),
+            halign="left",
+            valign="middle"
+        )
+
+        descripcion.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado.add_widget(
+            descripcion
+        )
+
+        # ====================================================
+        # ALERTA
+        # ====================================================
+
+        alerta = clima.generar_alerta()
+
+        texto_alerta = Label(
+            text=alerta,
+            color=(
+                COLOR_ERROR
+                if "Alerta" in alerta
+                else COLOR_EXITO
+            ),
+            font_size="14sp",
+            size_hint_y=None,
+            height=dp(55),
+            halign="left",
+            valign="middle"
+        )
+
+        texto_alerta.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado.add_widget(
+            texto_alerta
+        )
 
     # ========================================================
     # PRONÓSTICO
     # ========================================================
 
-    def ver_pronostico(
-        self,
-        instancia_boton
-    ):
+    def ver_pronostico(self, instance):
+
+        if self.cultivo_seleccionado is None:
+
+            self.mostrar_mensaje(
+                "Primero selecciona un cultivo."
+            )
+
+            return
 
         localidad = self.obtener_localidad()
 
-        if localidad is None:
+        if not localidad:
+
+            self.mostrar_mensaje(
+                "El cultivo no tiene localidad."
+            )
+
             return
+
+        self.mostrar_mensaje(
+            "Consultando pronóstico de 5 días..."
+        )
 
         try:
 
-            resultado = obtener_pronostico_dias(
-                localidad
+            pronostico = obtener_pronostico_dias(
+                localidad,
+                5
             )
 
-            if isinstance(resultado, list):
-
-                textos = []
-
-                for dia in resultado:
-
-                    textos.append(
-                        str(dia)
-                    )
-
-                self.resultado_pronostico.text = (
-                    "\n\n".join(textos)
-                )
-
-            else:
-
-                self.resultado_pronostico.text = (
-                    str(resultado)
-                )
-
-            self.mensaje.color = COLOR_EXITO
-
-            self.mensaje.text = (
-                f"Pronóstico consultado para "
-                f"{localidad}."
+            self.mostrar_pronostico(
+                pronostico
             )
 
         except Exception as error:
 
-            self.mensaje.color = COLOR_ERROR
-
-            self.mensaje.text = (
-                "No fue posible consultar "
-                "el pronóstico."
+            self.mostrar_error(
+                f"No se pudo obtener el pronóstico:\n"
+                f"{error}"
             )
 
-            self.resultado_pronostico.text = (
-                f"Error: {error}"
+    # ========================================================
+    # MOSTRAR PRONÓSTICO
+    # ========================================================
+
+    def mostrar_pronostico(
+        self,
+        pronostico
+    ):
+
+        self.resultado.clear_widgets()
+
+        if not pronostico:
+
+            self.mostrar_error(
+                "No se pudo obtener el pronóstico."
             )
+
+            return
+
+        # ----------------------------------------------------
+        # ALTURA SEGÚN CANTIDAD DE DÍAS
+        # ----------------------------------------------------
+
+        cantidad = len(pronostico)
+
+        altura = (
+            dp(20)
+            +
+            cantidad * dp(48)
+            +
+            max(0, cantidad - 1) * dp(5)
+            +
+            dp(20)
+        )
+
+        self.resultado.height = max(
+            dp(260),
+            altura
+        )
+
+        # ----------------------------------------------------
+        # TÍTULO
+        # ----------------------------------------------------
+
+        titulo = Label(
+            text=(
+                f"Pronóstico para "
+                f"{self.cultivo_seleccionado.localidad}"
+            ),
+            color=COLOR_AZUL_CLARO,
+            font_size="17sp",
+            bold=True,
+            size_hint_y=None,
+            height=dp(40),
+            halign="left",
+            valign="middle"
+        )
+
+        titulo.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado.add_widget(
+            titulo
+        )
+
+        # ----------------------------------------------------
+        # DÍAS
+        # ----------------------------------------------------
+
+        for clima in pronostico:
+
+            dia = Label(
+                text=(
+                    f"{clima.localidad}  |  "
+                    f"{clima.temperatura} °C  |  "
+                    f"Lluvia: "
+                    f"{clima.probabilidad_lluvia}%  |  "
+                    f"{clima.descripcion}"
+                ),
+                color=COLOR_TEXTO,
+                font_size="13sp",
+                size_hint_y=None,
+                height=dp(48),
+                halign="left",
+                valign="middle"
+            )
+
+            dia.bind(
+                size=lambda instance, value:
+                setattr(
+                    instance,
+                    "text_size",
+                    value
+                )
+            )
+
+            self.resultado.add_widget(
+                dia
+            )
+
+    # ========================================================
+    # MOSTRAR MENSAJE
+    # ========================================================
+
+    def mostrar_mensaje(
+        self,
+        texto
+    ):
+
+        self.resultado.clear_widgets()
+
+        self.resultado.height = dp(260)
+
+        mensaje = Label(
+            text=texto,
+            color=COLOR_INFO,
+            font_size="15sp",
+            halign="center",
+            valign="middle"
+        )
+
+        mensaje.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado.add_widget(
+            mensaje
+        )
+
+    # ========================================================
+    # MOSTRAR ERROR
+    # ========================================================
+
+    def mostrar_error(
+        self,
+        texto
+    ):
+
+        self.resultado.clear_widgets()
+
+        self.resultado.height = dp(260)
+
+        mensaje = Label(
+            text=texto,
+            color=COLOR_ERROR,
+            font_size="15sp",
+            halign="center",
+            valign="middle"
+        )
+
+        mensaje.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado.add_widget(
+            mensaje
+        )
 
 
 # ============================================================
 # PRUEBA INDIVIDUAL
 # ============================================================
 
-class AgroSmartApp(App):
-
-    def build(self):
-
-        self.title = "AgroSmart"
-
-        return PantallaClima()
-
-
 if __name__ == "__main__":
 
-    AgroSmartApp().run()
+    from kivy.app import App
+
+    class PruebaClima(App):
+
+        def build(self):
+
+            return PantallaClima()
+
+    PruebaClima().run()

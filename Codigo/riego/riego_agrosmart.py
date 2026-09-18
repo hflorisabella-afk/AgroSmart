@@ -797,8 +797,7 @@ class ControladorRiego:
             "humedad_despues": humedad_despues,
             "estado": "regado",
             "mensaje": (
-                "Se realizó el riego "
-                "automáticamente."
+                "Riego simulado realizado correctamente. "
             ),
             "minutos": round(minutos, 1),
             "litros": round(litros_estimados, 1),

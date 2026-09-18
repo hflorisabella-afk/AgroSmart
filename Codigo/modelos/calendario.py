@@ -1,66 +1,105 @@
-# calendario.py
 from datetime import datetime, timedelta
 import json
 import os
 
 
 class EventoCalendario:
-    def _init_(self, codigo, codigo_cultivo, tipo, fecha, descripcion=""):
-        self.codigo = codigo                  # código único, ej: "EVT001"
-        self.codigo_cultivo = codigo_cultivo  # a qué cultivo pertenece
-        self.tipo = tipo                      # ej: "Riego", "Fertilización", "Cosecha"
-        self.fecha = fecha                    # ej: "2026-09-01"
-        self.descripcion = descripcion        # ej: "Aplicar fertilizante NPK"
 
-    def _str_(self):
-        return f"[{self.codigo}] {self.tipo} - {self.fecha} (Cultivo {self.codigo_cultivo})"
+    def __init__(
+        self,
+        codigo,
+        codigo_cultivo,
+        tipo,
+        fecha,
+        descripcion=""
+    ):
+        self.codigo = codigo
+        self.codigo_cultivo = codigo_cultivo
+        self.tipo = tipo
+        self.fecha = fecha
+        self.descripcion = descripcion
+
+    def __str__(self):
+        return (
+            f"[{self.codigo}] "
+            f"{self.tipo} - {self.fecha} "
+            f"(Cultivo {self.codigo_cultivo})"
+        )
 
 
 class PrediccionCosecha:
-    def _init_(self, codigo_cultivo, fecha_estimada, dias_restantes, estado):
-        self.codigo_cultivo = codigo_cultivo      # a qué cultivo pertenece
-        self.fecha_estimada = fecha_estimada      # ej: "2026-11-15"
-        self.dias_restantes = dias_restantes      # ej: 45
-        self.estado = estado                      # ej: "En crecimiento", "Listo para cosecha"
 
-    def _str_(self):
-        return f"Cultivo {self.codigo_cultivo}: cosecha estimada {self.fecha_estimada} ({self.dias_restantes} días) - {self.estado}"
+    def __init__(
+        self,
+        codigo_cultivo,
+        fecha_estimada,
+        dias_restantes,
+        estado
+    ):
+        self.codigo_cultivo = codigo_cultivo
+        self.fecha_estimada = fecha_estimada
+        self.dias_restantes = dias_restantes
+        self.estado = estado
+
+    def __str__(self):
+        return (
+            f"Cultivo {self.codigo_cultivo}: "
+            f"cosecha estimada {self.fecha_estimada} "
+            f"({self.dias_restantes} días) - "
+            f"{self.estado}"
+        )
 
 
 class GestorCalendario:
-    """
-    Clase para administrar los eventos y calcular automáticamente
-    las predicciones de cosecha según las fechas de siembra.
-    """
-    def _init_(self):
+
+    def __init__(self):
+
+        # Lista de eventos
         self.eventos = []
 
-        # Archivo donde se guardarán los eventos
-        self.archivo = "eventos_calendario.json"
+        # Archivo donde se guardan los eventos
+        self.archivo = os.path.join(
+            os.path.dirname(__file__),
+            "eventos_calendario.json"
+        )
 
-        # Tiempos promedio de ciclo vegetativo (en días) según tipo de cultivo
+        # Días aproximados de maduración
+        # según el tipo de cultivo
         self.dias_maduracion = {
             "maiz": 120,
+            "maíz": 120,
             "frijol": 75,
             "tomate": 90,
             "cafe": 270,
-            "papa": 110
+            "café": 270,
+            "papa": 110,
+            "arroz": 120,
+            "hortalizas": 60
         }
 
-        # Cargar los eventos guardados anteriormente
+        # Cargar eventos existentes
         self.cargar_datos()
 
-    def agregar_evento(self, evento: EventoCalendario):
+    # =====================================================
+    # AGREGAR EVENTO
+    # =====================================================
+
+    def agregar_evento(self, evento):
+
         self.eventos.append(evento)
+
         self.guardar_datos()
 
+    # =====================================================
+    # GUARDAR DATOS
+    # =====================================================
+
     def guardar_datos(self):
-        """
-        Guarda los eventos del calendario en un archivo JSON.
-        """
+
         datos = []
 
         for evento in self.eventos:
+
             datos.append({
                 "codigo": evento.codigo,
                 "codigo_cultivo": evento.codigo_cultivo,
@@ -69,86 +108,194 @@ class GestorCalendario:
                 "descripcion": evento.descripcion
             })
 
-        with open(self.archivo, "w", encoding="utf-8") as archivo:
-            json.dump(datos, archivo, indent=4, ensure_ascii=False)
+        try:
+
+            with open(
+                self.archivo,
+                "w",
+                encoding="utf-8"
+            ) as archivo:
+
+                json.dump(
+                    datos,
+                    archivo,
+                    indent=4,
+                    ensure_ascii=False
+                )
+
+        except OSError:
+
+            print(
+                "No se pudieron guardar "
+                "los eventos del calendario."
+            )
+
+    # =====================================================
+    # CARGAR DATOS
+    # =====================================================
 
     def cargar_datos(self):
-        """
-        Carga los eventos guardados en el archivo JSON.
-        """
+
         if not os.path.exists(self.archivo):
             return
 
         try:
-            with open(self.archivo, "r", encoding="utf-8") as archivo:
+
+            with open(
+                self.archivo,
+                "r",
+                encoding="utf-8"
+            ) as archivo:
+
                 datos = json.load(archivo)
 
             for dato in datos:
+
                 evento = EventoCalendario(
                     codigo=dato["codigo"],
                     codigo_cultivo=dato["codigo_cultivo"],
                     tipo=dato["tipo"],
                     fecha=dato["fecha"],
-                    descripcion=dato["descripcion"]
+                    descripcion=dato.get(
+                        "descripcion",
+                        ""
+                    )
                 )
 
                 self.eventos.append(evento)
 
-        except (json.JSONDecodeError, KeyError):
-            print("No se pudieron cargar los datos guardados.")
+        except (
+            json.JSONDecodeError,
+            KeyError,
+            OSError
+        ):
 
-    def calcular_prediccion(self, codigo_cultivo, nombre_cultivo, fecha_siembra_str):
-        """
-        Calcula la fecha de cosecha proyectada y devuelve una instancia de PrediccionCosecha.
-        Formato de fecha_siembra_str: 'YYYY-MM-DD'
-        """
-        key_cultivo = nombre_cultivo.lower().strip()
-        dias_ciclo = self.dias_maduracion.get(key_cultivo, 90)
+            print(
+                "No se pudieron cargar "
+                "los eventos guardados."
+            )
 
+    # =====================================================
+    # PREDICCIÓN DE COSECHA
+    # =====================================================
+
+    def calcular_prediccion(
+        self,
+        codigo_cultivo,
+        nombre_cultivo,
+        fecha_siembra_str
+    ):
+
+        # Normalizar el tipo de cultivo
+        key_cultivo = (
+            nombre_cultivo
+            .lower()
+            .strip()
+        )
+
+        # Buscar días de maduración
+        # Si no existe el cultivo,
+        # se utiliza un valor de 90 días.
+        dias_ciclo = self.dias_maduracion.get(
+            key_cultivo,
+            90
+        )
+
+        # Validar fecha de siembra
         try:
-            fecha_siembra = datetime.strptime(fecha_siembra_str, "%Y-%m-%d")
+
+            fecha_siembra = datetime.strptime(
+                fecha_siembra_str,
+                "%Y-%m-%d"
+            )
+
         except ValueError:
-            raise ValueError("El formato de fecha debe ser YYYY-MM-DD")
 
-        fecha_estimada_obj = fecha_siembra + timedelta(days=dias_ciclo)
+            raise ValueError(
+                "El formato de fecha debe ser YYYY-MM-DD"
+            )
+
+        # Calcular fecha estimada
+        fecha_estimada_obj = (
+            fecha_siembra +
+            timedelta(days=dias_ciclo)
+        )
+
+        # Fecha actual
         hoy = datetime.now()
-        dias_restantes = (fecha_estimada_obj - hoy).days
 
-        # Determinación automática del estado
+        # Calcular días restantes
+        dias_restantes = (
+            fecha_estimada_obj - hoy
+        ).days
+
+        # Determinar estado
         if dias_restantes > 15:
+
             estado = "En crecimiento"
+
         elif 0 <= dias_restantes <= 15:
+
             estado = "Próximo a cosechar"
+
         else:
-            estado = "Listo para cosecha (o finalizado)"
 
-        fecha_estimada_str = fecha_estimada_obj.strftime("%Y-%m-%d")
+            estado = "Listo para cosecha"
 
-        # Se retorna una nueva instancia de tu clase PrediccionCosecha
+        # Convertir fecha a texto
+        fecha_estimada = (
+            fecha_estimada_obj.strftime(
+                "%Y-%m-%d"
+            )
+        )
+
         return PrediccionCosecha(
             codigo_cultivo=codigo_cultivo,
-            fecha_estimada=fecha_estimada_str,
-            dias_restantes=max(0, dias_restantes),
+            fecha_estimada=fecha_estimada,
+            dias_restantes=max(
+                0,
+                dias_restantes
+            ),
             estado=estado
         )
 
+    # =====================================================
+    # MOSTRAR CALENDARIO
+    # =====================================================
+
     def mostrar_calendario(self):
-        """Muestra la lista completa de eventos agendados."""
+
         if not self.eventos:
-            print("No hay eventos registrados en el calendario.")
+
+            print(
+                "No hay eventos registrados "
+                "en el calendario."
+            )
+
             return
 
-        print("\n--- AGENDA DE EVENTOS AGRÍCOLAS ---")
+        print(
+            "\n--- AGENDA DE EVENTOS AGRÍCOLAS ---"
+        )
 
-        for ev in sorted(self.eventos, key=lambda x: x.fecha):
-            print(ev)
+        eventos_ordenados = sorted(
+            self.eventos,
+            key=lambda evento: evento.fecha
+        )
+
+        for evento in eventos_ordenados:
+
+            print(evento)
 
 
-# --- Zona de prueba ---
-if _name_ == "_main_":
+# =========================================================
+# PRUEBA
+# =========================================================
+
+if __name__ == "__main__":
+
     gestor = GestorCalendario()
 
-    # 1. Pruebas de tus instancias originales
     evento1 = EventoCalendario(
         codigo="EVT001",
         codigo_cultivo="CULT001",
@@ -159,22 +306,22 @@ if _name_ == "_main_":
 
     gestor.agregar_evento(evento1)
 
-    gestor.agregar_evento(
-        EventoCalendario(
-            "EVT002",
-            "CULT001",
-            "Riego",
-            "2026-09-20",
-            "Riego por goteo programado"
-        )
+    evento2 = EventoCalendario(
+        codigo="EVT002",
+        codigo_cultivo="CULT001",
+        tipo="Riego",
+        fecha="2026-09-20",
+        descripcion="Riego por goteo programado"
     )
 
-    # Mostrar agenda
+    gestor.agregar_evento(evento2)
+
     gestor.mostrar_calendario()
 
-    print("\n--- PREDICCIÓN DE COSECHAS ---")
+    print(
+        "\n--- PREDICCIÓN DE COSECHAS ---"
+    )
 
-    # 2. Generación dinámica de predicciones por fecha de siembra
     pred1 = gestor.calcular_prediccion(
         codigo_cultivo="CULT001",
         nombre_cultivo="maiz",

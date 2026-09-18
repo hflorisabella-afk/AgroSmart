@@ -1,98 +1,147 @@
 # pantalla_riego.py
-# Pantalla visual de AgroSmart para el módulo de Riego.
-# Los cultivos se obtienen directamente desde GestorCultivos.
-# No se registran cultivos nuevamente desde esta pantalla.
 
-import sys
 import os
+import sys
 
-sys.path.append(
-    os.path.join(os.path.dirname(__file__), "..", "modelos")
-)
-
-from gestor_cultivos import GestorCultivos
-
-from riego_agrosmart import (
-    GestorRiego,
-    ControladorRiego,
-    normalizar_codigo
-)
-
-from kivy.app import App
-from kivy.core.window import Window
+from kivy.clock import Clock
+from kivy.metrics import dp
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
-from kivy.uix.scrollview import ScrollView
+from kivy.graphics import Color, RoundedRectangle
+from kivy.uix.widget import Widget
+
+# Rutas
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "riego"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "modelos"))
+
+from gestor_cultivos import GestorCultivos
+from riego_agrosmart import GestorRiego, ControladorRiego, normalizar_codigo
+
+
 
 
 # ============================================================
-# COLORES
+# COLORES - ROSA PALO
 # ============================================================
 
-COLOR_FONDO = (0.14, 0.07, 0.06, 1)
+COLOR_FONDO = (0.18, 0.12, 0.14, 1)
 
-# Aunque el nombre se mantiene por compatibilidad con app_principal.py,
-# este color es rojo/coral.
-COLOR_AZUL_PRINCIPAL = (0.70, 0.30, 0.25, 1)
+COLOR_ROSA_PALO = (0.72, 0.48, 0.54, 1)
+COLOR_ROSA_CLARO = (0.90, 0.72, 0.76, 1)
 
-COLOR_ROJO_CLARO = (0.95, 0.60, 0.52, 1)
+COLOR_TEXTO = (0.96, 0.93, 0.94, 1)
+COLOR_TEXTO_SECUNDARIO = (0.76, 0.68, 0.71, 1)
 
-COLOR_TEXTO_CLARO = (0.95, 0.92, 0.90, 1)
+COLOR_TARJETA = (0.29, 0.21, 0.24, 1)
+COLOR_TARJETA_CLARA = (0.38, 0.28, 0.32, 1)
+
+COLOR_EXITO = (0.55, 0.82, 0.62, 1)
+COLOR_ERROR = (0.95, 0.50, 0.55, 1)
 COLOR_INFO = (0.65, 0.78, 0.88, 1)
-COLOR_ERROR = (1, 0.45, 0.40, 1)
-COLOR_EXITO = (0.55, 0.85, 0.55, 1)
 
-COLOR_TARJETA = (0.25, 0.13, 0.11, 1)
-
-# Compatibilidad con código anterior
-COLOR_VERDE_PRINCIPAL = COLOR_AZUL_PRINCIPAL
-COLOR_VERDE_CLARO = COLOR_ROJO_CLARO
-
-Window.clearcolor = COLOR_FONDO
-Window.size = (780, 850)
+# Compatibilidad con app_principal.py
+COLOR_AZUL_PRINCIPAL = COLOR_ROSA_PALO
+COLOR_VERDE_PRINCIPAL = COLOR_ROSA_PALO
+COLOR_VERDE_CLARO = COLOR_ROSA_CLARO
 
 
 # ============================================================
-# GESTORES COMPARTIDOS
+# GESTORES
 # ============================================================
 
 gestor_cultivos = GestorCultivos()
-
-gestor_riego = GestorRiego(
-    gestor_cultivos
-)
-
-controlador_riego = ControladorRiego(
-    gestor_riego
-)
+gestor_riego = GestorRiego(gestor_cultivos)
+controlador_riego = ControladorRiego(gestor_riego)
 
 
 # ============================================================
-# BOTÓN
+# TARJETA DE CULTIVO
 # ============================================================
 
-def boton_estilizado(
-    texto,
-    alto=45,
-    color_fondo=None
-):
+class TarjetaCultivo(BoxLayout):
 
-    boton = Button(
-        text=texto,
-        size_hint_y=None,
-        height=alto,
-        background_normal="",
-        background_color=(
-            color_fondo
-            if color_fondo
-            else COLOR_VERDE_PRINCIPAL
-        ),
-        color=(1, 1, 1, 1),
-        bold=True
-    )
+    def __init__(self, cultivo, callback, seleccionado=False, **kwargs):
+        super().__init__(
+            orientation="vertical",
+            padding=[dp(18), dp(10)],
+            spacing=dp(2),
+            size_hint_y=None,
+            height=dp(82),
+            **kwargs
+        )
 
-    return boton
+        self.cultivo = cultivo
+        self.callback = callback
+
+        self.seleccionado = seleccionado
+
+        with self.canvas.before:
+            self.color_fondo = Color(
+                *(COLOR_TARJETA_CLARA if seleccionado else COLOR_TARJETA)
+            )
+            self.rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(12)]
+            )
+
+        self.bind(pos=self.actualizar_rect, size=self.actualizar_rect)
+
+        nombre = Label(
+            text=str(cultivo.nombre),
+            color=COLOR_TEXTO,
+            font_size=dp(17),
+            bold=True,
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(30)
+        )
+
+        nombre.bind(
+            size=lambda instance, value: setattr(
+                instance, "text_size", value
+            )
+        )
+
+        detalles = Label(
+            text=(
+                f"{cultivo.tipo}  •  "
+                f"Parcela {cultivo.numero_parcela}  •  "
+                f"{cultivo.tamano_parcela} ha"
+            ),
+            color=COLOR_TEXTO_SECUNDARIO,
+            font_size=dp(12),
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(25)
+        )
+
+        detalles.bind(
+            size=lambda instance, value: setattr(
+                instance, "text_size", value
+            )
+        )
+
+        self.add_widget(nombre)
+        self.add_widget(detalles)
+
+    def actualizar_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+
+    def seleccionar(self):
+        self.callback(self.cultivo)
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            self.seleccionar()
+            return True
+
+        return super().on_touch_down(touch)
 
 
 # ============================================================
@@ -102,153 +151,244 @@ def boton_estilizado(
 class PantallaRiego(ScrollView):
 
     def __init__(self, **kwargs):
+        super().__init__(
+            do_scroll_x=False,
+            do_scroll_y=True,
+            **kwargs
+        )
 
-        super().__init__(**kwargs)
+        self.cultivo_seleccionado = None
 
-        contenido = BoxLayout(
+        self.contenedor = BoxLayout(
             orientation="vertical",
-            size_hint_y=None,
-            padding=15,
-            spacing=10
+            spacing=dp(14),
+            padding=[dp(20), dp(20), dp(20), dp(30)],
+            size_hint_y=None
         )
 
-        contenido.bind(
-            minimum_height=contenido.setter("height")
+        self.contenedor.bind(
+            minimum_height=self.contenedor.setter("height")
         )
 
-        self.add_widget(contenido)
+        self.add_widget(self.contenedor)
 
-        # ----------------------------------------------------
+        self.crear_interfaz()
+
+        Clock.schedule_once(
+            lambda dt: self.actualizar_lista(),
+            0
+        )
+
+    # ========================================================
+    # INTERFAZ
+    # ========================================================
+
+    def crear_interfaz(self):
+
         # TÍTULO
-        # ----------------------------------------------------
-
         titulo = Label(
-            text="AgroSmart - Control de Riego",
-            font_size=24,
+            text="RIEGO",
+            color=COLOR_ROSA_CLARO,
+            font_size=dp(30),
             bold=True,
             size_hint_y=None,
-            height=45,
-            color=COLOR_VERDE_CLARO
+            height=dp(48)
         )
 
-        contenido.add_widget(titulo)
+        self.contenedor.add_widget(titulo)
 
-        # ----------------------------------------------------
-        # INFORMACIÓN
-        # ----------------------------------------------------
-
-        informacion = Label(
-            text=(
-                "Selecciona un cultivo registrado para "
-                "revisar su necesidad de riego."
-            ),
+        subtitulo = Label(
+            text="Control inteligente de riego para tus cultivos",
+            color=COLOR_TEXTO_SECUNDARIO,
+            font_size=dp(14),
             size_hint_y=None,
-            height=45,
-            font_size=15,
-            color=COLOR_TEXTO_CLARO
+            height=dp(35)
         )
 
-        contenido.add_widget(informacion)
+        self.contenedor.add_widget(subtitulo)
 
-        # ----------------------------------------------------
-        # MENSAJE
-        # ----------------------------------------------------
-
-        self.mensaje = Label(
-            text="",
+        # SECCIÓN CULTIVOS
+        titulo_cultivos = Label(
+            text="TUS CULTIVOS",
+            color=COLOR_TEXTO,
+            font_size=dp(18),
+            bold=True,
+            halign="left",
+            valign="middle",
             size_hint_y=None,
-            height=45,
-            font_size=15,
-            color=COLOR_INFO
+            height=dp(35)
         )
 
-        contenido.add_widget(self.mensaje)
-
-        # ----------------------------------------------------
-        # BOTÓN REVISAR TODOS
-        # ----------------------------------------------------
-
-        boton_todos = boton_estilizado(
-            "Revisar y regar todos los cultivos"
-        )
-
-        boton_todos.bind(
-            on_press=self.revisar_y_regar_todos
-        )
-
-        contenido.add_widget(boton_todos)
-
-        # ----------------------------------------------------
-        # TÍTULO DE CULTIVOS
-        # ----------------------------------------------------
-
-        contenido.add_widget(
-            Label(
-                text="Cultivos registrados:",
-                size_hint_y=None,
-                height=35,
-                font_size=17,
-                color=COLOR_VERDE_CLARO,
-                bold=True
+        titulo_cultivos.bind(
+            size=lambda instance, value: setattr(
+                instance,
+                "text_size",
+                value
             )
         )
 
-        # ----------------------------------------------------
-        # LISTA
-        # ----------------------------------------------------
+        self.contenedor.add_widget(titulo_cultivos)
 
+        # LISTA DE CULTIVOS
         self.lista_cultivos = BoxLayout(
             orientation="vertical",
-            size_hint_y=None,
-            spacing=8,
-            padding=[0, 5]
+            spacing=dp(10),
+            size_hint_y=None
         )
 
-        self.lista_cultivos.bind(
-            minimum_height=self.lista_cultivos.setter(
-                "height"
+        self.contenedor.add_widget(self.lista_cultivos)
+
+        # BOTÓN GENERAL
+        self.boton_todos = Button(
+            text="Revisar y regar todos los cultivos",
+            size_hint_y=None,
+            height=dp(52),
+            background_normal="",
+            background_color=COLOR_ROSA_PALO,
+            color=COLOR_TEXTO,
+            font_size=dp(14),
+            bold=True
+        )
+
+        self.boton_todos.bind(
+            on_release=lambda instance: self.revisar_y_regar_todos()
+        )
+
+        self.contenedor.add_widget(self.boton_todos)
+
+        # SEPARADOR
+        separador = Widget(
+            size_hint_y=None,
+            height=dp(2)
+        )
+
+        with separador.canvas:
+            Color(*COLOR_ROSA_PALO)
+            self.linea = RoundedRectangle(
+                pos=separador.pos,
+                size=separador.size,
+                radius=[dp(1)]
+            )
+
+        separador.bind(
+            pos=lambda instance, value: setattr(
+                self.linea,
+                "pos",
+                value
+            ),
+            size=lambda instance, value: setattr(
+                self.linea,
+                "size",
+                value
             )
         )
 
-        contenido.add_widget(
-            self.lista_cultivos
-        )
+        self.contenedor.add_widget(separador)
 
-        # ----------------------------------------------------
-        # RESULTADO
-        # ----------------------------------------------------
-
-        contenido.add_widget(
-            Label(
-                text="Resultado:",
-                size_hint_y=None,
-                height=35,
-                font_size=17,
-                color=COLOR_VERDE_CLARO,
-                bold=True
-            )
-        )
-
-        self.resultado = Label(
-            text="Selecciona un cultivo.",
-            size_hint_y=None,
-            height=150,
-            font_size=15,
-            color=COLOR_TEXTO_CLARO,
+        # ESTADO
+        titulo_estado = Label(
+            text="ESTADO DEL RIEGO",
+            color=COLOR_TEXTO,
+            font_size=dp(18),
+            bold=True,
             halign="left",
-            valign="top"
+            valign="middle",
+            size_hint_y=None,
+            height=dp(35)
         )
 
-        self.resultado.bind(
-            size=lambda inst, val:
-            setattr(inst, "text_size", val)
+        titulo_estado.bind(
+            size=lambda instance, value: setattr(
+                instance,
+                "text_size",
+                value
+            )
         )
 
-        contenido.add_widget(
-            self.resultado
+        self.contenedor.add_widget(titulo_estado)
+
+        # RESULTADO
+        self.resultado_contenedor = BoxLayout(
+            orientation="vertical",
+            padding=[dp(18), dp(15)],
+            spacing=dp(6),
+            size_hint_y=None,
+            height=dp(250)
         )
 
-        self.actualizar_lista()
+        with self.resultado_contenedor.canvas.before:
+            self.color_resultado = Color(*COLOR_TARJETA)
+            self.rect_resultado = RoundedRectangle(
+                pos=self.resultado_contenedor.pos,
+                size=self.resultado_contenedor.size,
+                radius=[dp(12)]
+            )
+
+        self.resultado_contenedor.bind(
+            pos=self.actualizar_rect_resultado,
+            size=self.actualizar_rect_resultado
+        )
+
+        mensaje_inicial = Label(
+            text="Selecciona un cultivo para revisar su riego.",
+            color=COLOR_TEXTO_SECUNDARIO,
+            font_size=dp(14),
+            halign="center",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(80)
+        )
+
+        mensaje_inicial.bind(
+            size=lambda instance, value: setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado_contenedor.add_widget(
+            mensaje_inicial
+        )
+
+        self.contenedor.add_widget(
+            self.resultado_contenedor
+        )
+
+        Clock.schedule_once(
+            self.actualizar_alturas,
+            0
+        )
+
+    # ========================================================
+    # ACTUALIZAR ALTURAS
+    # ========================================================
+
+    def actualizar_alturas(self, *args):
+
+        cantidad = len(self.lista_cultivos.children)
+
+        if cantidad == 0:
+            self.lista_cultivos.height = dp(60)
+        else:
+            self.lista_cultivos.height = (
+                cantidad * dp(82)
+                + max(0, cantidad - 1) * dp(10)
+            )
+
+        self.contenedor.do_layout()
+
+    # ========================================================
+    # RECTÁNGULO RESULTADO
+    # ========================================================
+
+    def actualizar_rect_resultado(self, *args):
+        self.rect_resultado.pos = (
+            self.resultado_contenedor.pos
+        )
+        self.rect_resultado.size = (
+            self.resultado_contenedor.size
+        )
 
     # ========================================================
     # ACTUALIZAR LISTA
@@ -258,130 +398,357 @@ class PantallaRiego(ScrollView):
 
         self.lista_cultivos.clear_widgets()
 
-        # Volvemos a cargar la información del archivo
-        # principal de cultivos.
-        global gestor_cultivos
-        gestor_cultivos = GestorCultivos()
+        # Volvemos a cargar los cultivos guardados
+        gestor_actual = GestorCultivos()
 
-        gestor_riego.gestor_cultivos = gestor_cultivos
+        gestor_riego.gestor_cultivos = gestor_actual
+
         gestor_riego.sincronizar_con_cultivos()
 
-        if len(gestor_cultivos.lista_cultivos) == 0:
+        cultivos = gestor_actual.lista_cultivos
 
-            self.lista_cultivos.add_widget(
-                Label(
-                    text=(
-                        "No hay cultivos registrados. "
-                        "Primero registra uno en "
-                        "Registro de Cultivos."
-                    ),
-                    size_hint_y=None,
-                    height=50,
-                    color=COLOR_TEXTO_CLARO
+        # Si no hay cultivos
+        if not cultivos:
+
+            mensaje = Label(
+                text="Todavía no tienes cultivos registrados.",
+                color=COLOR_TEXTO_SECUNDARIO,
+                font_size=dp(14),
+                halign="center",
+                valign="middle",
+                size_hint_y=None,
+                height=dp(60)
+            )
+
+            mensaje.bind(
+                size=lambda instance, value: setattr(
+                    instance,
+                    "text_size",
+                    value
                 )
             )
 
-            return
+            self.lista_cultivos.add_widget(mensaje)
 
-        # ----------------------------------------------------
-        # CREAR BOTÓN POR CADA CULTIVO
-        # ----------------------------------------------------
+        else:
 
-        for cultivo in gestor_cultivos.lista_cultivos:
+            # Crear tarjeta para cada cultivo
+            for cultivo in cultivos:
 
-            boton = Button(
-                text=(
-                    f"{cultivo.codigo} - "
-                    f"{cultivo.nombre}\n"
-                    f"{cultivo.tipo} | "
-                    f"{cultivo.localidad} | "
-                    f"Parcela {cultivo.numero_parcela}"
-                ),
-                size_hint_y=None,
-                height=65,
-                halign="left",
-                valign="middle",
-                background_normal="",
-                background_color=COLOR_TARJETA,
-                color=COLOR_TEXTO_CLARO
-            )
+                tarjeta = TarjetaCultivo(
+                    cultivo=cultivo,
+                    callback=self.revisar_cultivo,
+                    seleccionado=(
+                        self.cultivo_seleccionado is not None
+                        and self.cultivo_seleccionado.codigo
+                        == cultivo.codigo
+                    )
+                )
 
-            boton.bind(
-                size=lambda inst, val:
-                setattr(inst, "text_size", val)
-            )
+                self.lista_cultivos.add_widget(tarjeta)
 
-            boton.bind(
-                on_press=lambda inst,
-                cultivo=cultivo:
-                self.revisar_cultivo(cultivo)
-            )
-
-            self.lista_cultivos.add_widget(
-                boton
-            )
+        Clock.schedule_once(
+            self.actualizar_alturas,
+            0
+        )
 
     # ========================================================
-    # REVISAR UN CULTIVO
+    # SELECCIONAR CULTIVO
     # ========================================================
 
     def revisar_cultivo(self, cultivo):
 
-        resultado = controlador_riego.revisar_zona(
-            cultivo.codigo
-        )
+        self.cultivo_seleccionado = cultivo
 
-        self.mostrar_resultado(
-            cultivo,
-            resultado
-        )
+        try:
+            resultado = controlador_riego.revisar_zona(
+                cultivo.codigo
+            )
+
+            self.mostrar_resultado(
+                resultado,
+                cultivo
+            )
+
+            self.actualizar_lista_seleccionada()
+
+        except Exception as e:
+
+            self.mostrar_error(
+                f"No se pudo revisar el riego:\n{e}"
+            )
+
+    # ========================================================
+    # ACTUALIZAR SELECCIÓN VISUAL
+    # ========================================================
+
+    def actualizar_lista_seleccionada(self):
+
+        for widget in self.lista_cultivos.children:
+
+            if isinstance(widget, TarjetaCultivo):
+
+                seleccionado = (
+                    self.cultivo_seleccionado is not None
+                    and widget.cultivo.codigo
+                    == self.cultivo_seleccionado.codigo
+                )
+
+                widget.color_fondo.rgba = (
+                    COLOR_TARJETA_CLARA
+                    if seleccionado
+                    else COLOR_TARJETA
+                )
 
     # ========================================================
     # REVISAR TODOS
     # ========================================================
 
-    def revisar_y_regar_todos(
-        self,
-        instancia_boton
-    ):
+    def revisar_y_regar_todos(self):
 
-        resultados = (
-            controlador_riego.revisar_y_regar_todas()
-        )
+        try:
 
-        if not resultados:
+            resultados = controlador_riego.revisar_y_regar_todas()
 
-            self.mensaje.color = COLOR_ERROR
+            if not resultados:
 
-            self.mensaje.text = (
-                "No hay cultivos registrados."
+                self.mostrar_mensaje(
+                    "No hay cultivos registrados para revisar."
+                )
+
+                return
+
+            # Mostrar resumen de todos
+            self.mostrar_resultados_todos(resultados)
+
+            self.actualizar_lista()
+
+        except Exception as e:
+
+            self.mostrar_error(
+                f"No se pudo realizar la revisión:\n{e}"
             )
 
-            self.resultado.text = ""
+    # ========================================================
+    # MOSTRAR RESULTADO INDIVIDUAL
+    # ========================================================
 
-            return
+    def mostrar_resultado(self, resultado, cultivo):
 
-        self.mensaje.color = COLOR_EXITO
+        self.resultado_contenedor.clear_widgets()
 
-        self.mensaje.text = (
-            "Se revisaron todos los cultivos."
+        nombre = resultado.get(
+            "cultivo",
+            cultivo.nombre
         )
 
-        textos = []
+        humedad = resultado.get(
+            "humedad",
+            resultado.get("humedad_actual", None)
+        )
+
+        estado = resultado.get(
+            "estado",
+            "desconocido"
+        )
+
+        mensaje = resultado.get(
+            "mensaje",
+            "Sin información adicional."
+        )
+
+        titulo = Label(
+            text=str(nombre),
+            color=COLOR_ROSA_CLARO,
+            font_size=dp(21),
+            bold=True,
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(35)
+        )
+
+        titulo.bind(
+            size=lambda instance, value: setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado_contenedor.add_widget(titulo)
+
+        if humedad is not None:
+
+            humedad_label = Label(
+                text=f"Humedad actual: {humedad:.1f}%",
+                color=COLOR_TEXTO,
+                font_size=dp(14),
+                halign="left",
+                valign="middle",
+                size_hint_y=None,
+                height=dp(30)
+            )
+
+            humedad_label.bind(
+                size=lambda instance, value: setattr(
+                    instance,
+                    "text_size",
+                    value
+                )
+            )
+
+            self.resultado_contenedor.add_widget(
+                humedad_label
+            )
+
+        estado_label = Label(
+            text=f"Estado: {estado.upper()}",
+            color=self.color_estado(estado),
+            font_size=dp(14),
+            bold=True,
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(30)
+        )
+
+        estado_label.bind(
+            size=lambda instance, value: setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado_contenedor.add_widget(
+            estado_label
+        )
+
+        mensaje_label = Label(
+            text=str(mensaje),
+            color=COLOR_TEXTO,
+            font_size=dp(14),
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(50)
+        )
+
+        mensaje_label.bind(
+            size=lambda instance, value: setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado_contenedor.add_widget(
+            mensaje_label
+        )
+
+        # Duración
+        duracion = resultado.get(
+            "duracion_minutos"
+        )
+
+        if duracion is not None:
+
+            self.agregar_dato(
+                f"Duración estimada: {duracion} min"
+            )
+
+        # Litros
+        litros = resultado.get(
+            "litros_estimados"
+        )
+
+        if litros is not None:
+
+            self.agregar_dato(
+                f"Agua estimada: {litros:.1f} litros"
+            )
+
+        # Lluvia
+        probabilidad = resultado.get(
+            "probabilidad_lluvia"
+        )
+
+        if probabilidad is not None:
+
+            self.agregar_dato(
+                f"Probabilidad de lluvia: {probabilidad * 100:.0f}%"
+            )
+
+        lluvia = resultado.get(
+            "milimetros_lluvia"
+        )
+
+        if lluvia is not None:
+
+            self.agregar_dato(
+                f"Lluvia estimada: {lluvia:.1f} mm"
+            )
+
+    # ========================================================
+    # DATOS ADICIONALES
+    # ========================================================
+
+    def agregar_dato(self, texto):
+
+        etiqueta = Label(
+            text=str(texto),
+            color=COLOR_TEXTO_SECUNDARIO,
+            font_size=dp(13),
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(25)
+        )
+
+        etiqueta.bind(
+            size=lambda instance, value: setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.resultado_contenedor.add_widget(
+            etiqueta
+        )
+
+    # ========================================================
+    # MOSTRAR TODOS LOS RESULTADOS
+    # ========================================================
+
+    def mostrar_resultados_todos(self, resultados):
+
+        self.resultado_contenedor.clear_widgets()
+
+        titulo = Label(
+            text="Revisión de todos los cultivos",
+            color=COLOR_ROSA_CLARO,
+            font_size=dp(20),
+            bold=True,
+            size_hint_y=None,
+            height=dp(35)
+        )
+
+        self.resultado_contenedor.add_widget(
+            titulo
+        )
 
         for resultado in resultados:
 
-            nombre = resultado.get(
-                "nombre",
-                resultado.get(
-                    "codigo",
-                    ""
-                )
+            cultivo = resultado.get(
+                "cultivo",
+                "Cultivo"
             )
 
             estado = resultado.get(
                 "estado",
-                ""
+                "desconocido"
             )
 
             mensaje = resultado.get(
@@ -389,117 +756,128 @@ class PantallaRiego(ScrollView):
                 ""
             )
 
-            textos.append(
-                f"{nombre}\n"
+            texto = (
+                f"{cultivo}: "
+                f"{estado.upper()}\n"
                 f"{mensaje}"
             )
 
-        self.resultado.text = (
-            "\n\n".join(textos)
+            etiqueta = Label(
+                text=texto,
+                color=COLOR_TEXTO,
+                font_size=dp(12),
+                halign="left",
+                valign="middle",
+                size_hint_y=None,
+                height=dp(55)
+            )
+
+            etiqueta.bind(
+                size=lambda instance, value: setattr(
+                    instance,
+                    "text_size",
+                    value
+                )
+            )
+
+            self.resultado_contenedor.add_widget(
+                etiqueta
+            )
+
+        altura = 60 + len(resultados) * 55
+
+        self.resultado_contenedor.height = max(
+            dp(250),
+            dp(altura)
         )
 
-        self.actualizar_lista()
+        Clock.schedule_once(
+            self.actualizar_alturas,
+            0
+        )
 
     # ========================================================
-    # MOSTRAR RESULTADO
+    # COLOR SEGÚN ESTADO
     # ========================================================
 
-    def mostrar_resultado(
-        self,
-        cultivo,
-        resultado
-    ):
+    def color_estado(self, estado):
 
-        estado = resultado.get(
-            "estado",
-            ""
-        )
-
-        mensaje = resultado.get(
-            "mensaje",
-            ""
-        )
-
-        humedad = resultado.get(
-            "humedad",
-            None
-        )
-
-        texto = (
-            f"Cultivo: {cultivo.nombre}\n"
-            f"Código: {cultivo.codigo}\n"
-            f"Localidad: {cultivo.localidad}\n"
-            f"Tierra: {cultivo.tipo_tierra}\n"
-            f"Parcela: {cultivo.numero_parcela}\n"
-        )
-
-        if humedad is not None:
-
-            texto += (
-                f"Humedad actual: "
-                f"{humedad}%\n"
-            )
-
-        texto += (
-            f"\nEstado: {estado}\n"
-            f"Recomendación: {mensaje}"
-        )
-
-        if "minutos" in resultado:
-
-            texto += (
-                f"\nDuración del riego: "
-                f"{resultado['minutos']} minutos"
-            )
-
-        if "litros" in resultado:
-
-            texto += (
-                f"\nAgua estimada: "
-                f"{resultado['litros']} litros"
-            )
-
-        if "probabilidad_lluvia" in resultado:
-
-            texto += (
-                f"\nProbabilidad de lluvia: "
-                f"{resultado['probabilidad_lluvia']}%"
-            )
-
-        self.resultado.text = texto
+        estado = str(estado).lower()
 
         if estado == "regado":
+            return COLOR_EXITO
 
-            self.mensaje.color = COLOR_EXITO
+        if estado == "correcto":
+            return COLOR_EXITO
 
-        elif estado == "correcto":
+        if estado == "lluvia":
+            return COLOR_INFO
 
-            self.mensaje.color = COLOR_INFO
+        if estado == "error":
+            return COLOR_ERROR
 
-        elif estado == "lluvia":
+        return COLOR_TEXTO
 
-            self.mensaje.color = COLOR_INFO
+    # ========================================================
+    # MENSAJE
+    # ========================================================
 
-        else:
+    def mostrar_mensaje(self, texto):
 
-            self.mensaje.color = COLOR_ERROR
+        self.resultado_contenedor.clear_widgets()
 
-        self.mensaje.text = mensaje
+        mensaje = Label(
+            text=str(texto),
+            color=COLOR_TEXTO_SECUNDARIO,
+            font_size=dp(14),
+            halign="center",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(80)
+        )
 
+        mensaje.bind(
+            size=lambda instance, value: setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
 
-# ============================================================
-# PRUEBA INDIVIDUAL
-# ============================================================
+        self.resultado_contenedor.add_widget(
+            mensaje
+        )
 
-class AgroSmartApp(App):
+        self.resultado_contenedor.height = dp(250)
 
-    def build(self):
+    # ========================================================
+    # ERROR
+    # ========================================================
 
-        self.title = "AgroSmart"
+    def mostrar_error(self, texto):
 
-        return PantallaRiego()
+        self.resultado_contenedor.clear_widgets()
 
+        mensaje = Label(
+            text=str(texto),
+            color=COLOR_ERROR,
+            font_size=dp(14),
+            halign="center",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(100)
+        )
 
-if __name__ == "__main__":
+        mensaje.bind(
+            size=lambda instance, value: setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
 
-    AgroSmartApp().run()
+        self.resultado_contenedor.add_widget(
+            mensaje
+        )
+
+        self.resultado_contenedor.height = dp(250)
