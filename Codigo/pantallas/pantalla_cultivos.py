@@ -8,15 +8,12 @@ from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
+from kivy.uix.gridlayout import GridLayout
 
 import os
 import sys
-from datetime import datetime
-
-
-# ============================================================
-# IMPORTAR MODELOS
-# ============================================================
+from datetime import datetime, date
+import calendar
 
 sys.path.append(
     os.path.join(os.path.dirname(__file__), "..", "modelos")
@@ -24,11 +21,6 @@ sys.path.append(
 
 from cultivo import Cultivo
 from gestor_cultivos import GestorCultivos
-
-
-# ============================================================
-# COLORES
-# ============================================================
 
 COLOR_FONDO = (0.10, 0.11, 0.14, 1)
 
@@ -55,20 +47,10 @@ COLOR_CANCELAR = (0.35, 0.27, 0.29, 1)
 Window.clearcolor = COLOR_FONDO
 Window.size = (780, 850)
 
-
-# ============================================================
-# CONFIGURACIÓN
-# ============================================================
-
 ALTURA_CAMPO = 48
 ALTURA_TARJETA = 150
 
 gestor = GestorCultivos()
-
-
-# ============================================================
-# CAMPO DE TEXTO REDONDEADO
-# ============================================================
 
 class CampoRedondeado(BoxLayout):
 
@@ -82,7 +64,6 @@ class CampoRedondeado(BoxLayout):
             **kwargs
         )
 
-        # Fondo redondeado
         with self.canvas.before:
 
             Color(*COLOR_CAJA_TEXTO)
@@ -98,7 +79,6 @@ class CampoRedondeado(BoxLayout):
             size=self.actualizar_fondo
         )
 
-        # TextInput REAL
         self.campo = TextInput(
             text=texto,
             hint_text=hint_text,
@@ -144,18 +124,12 @@ class CampoRedondeado(BoxLayout):
 
         self.campo.focus = valor
 
-
-# ============================================================
-# FUNCIONES DE DISEÑO
-# ============================================================
-
 def caja_de_texto(texto="", hint_text=""):
 
     return CampoRedondeado(
         texto=texto,
         hint_text=hint_text
     )
-
 
 def boton_estilizado(
     texto,
@@ -196,7 +170,6 @@ def boton_estilizado(
 
     return boton
 
-
 def etiqueta_seccion(texto):
 
     return Label(
@@ -209,7 +182,6 @@ def etiqueta_seccion(texto):
         halign="left",
         valign="middle"
     )
-
 
 def fila_con_etiqueta(texto, hint=""):
 
@@ -246,10 +218,314 @@ def fila_con_etiqueta(texto, hint=""):
 
     return fila, caja
 
+DEPARTAMENTOS_GUATEMALA = [
+    "Alta Verapaz", "Baja Verapaz", "Chimaltenango", "Chiquimula",
+    "El Progreso", "Escuintla", "Guatemala", "Huehuetenango",
+    "Izabal", "Jalapa", "Jutiapa", "Petén", "Quetzaltenango",
+    "Quiché", "Retalhuleu", "Sacatepéquez", "San Marcos",
+    "Santa Rosa", "Sololá", "Suchitepéquez", "Totonicapán",
+    "Zacapa"
+]
 
-# ============================================================
-# PANTALLA DE CULTIVOS
-# ============================================================
+class ControlLocalidad(BoxLayout):
+    """Campo donde se puede escribir una localidad o elegir un departamento."""
+
+    def __init__(self, texto="", **kwargs):
+        super().__init__(
+            orientation="horizontal",
+            spacing=dp(6),
+            size_hint_y=None,
+            height=dp(ALTURA_CAMPO),
+            **kwargs
+        )
+
+        self.campo = TextInput(
+            text=texto,
+            hint_text="Escribe o selecciona un departamento",
+            multiline=False,
+            background_normal="",
+            background_active="",
+            background_color=COLOR_CAJA_TEXTO,
+            foreground_color=COLOR_TEXTO_CAJA,
+            hint_text_color=(0.45, 0.48, 0.45, 1),
+            cursor_color=COLOR_VERDE_PRINCIPAL,
+            padding=[dp(12), dp(12), dp(8), dp(12)]
+        )
+        self.add_widget(self.campo)
+
+        self.boton_lista = boton_estilizado("Lista", COLOR_VERDE_OSCURO, ALTURA_CAMPO)
+        self.boton_lista.size_hint_x = None
+        self.boton_lista.width = dp(82)
+        self.boton_lista.bind(on_release=self.abrir_lista)
+        self.add_widget(self.boton_lista)
+
+    @property
+    def text(self):
+        return self.campo.text
+
+    @text.setter
+    def text(self, valor):
+        self.campo.text = str(valor or "")
+
+    @property
+    def focus(self):
+        return self.campo.focus
+
+    @focus.setter
+    def focus(self, valor):
+        self.campo.focus = valor
+
+    def abrir_lista(self, *_):
+        contenido = BoxLayout(
+            orientation="vertical",
+            spacing=dp(8),
+            padding=dp(12)
+        )
+        buscador = TextInput(
+            hint_text="Buscar departamento...",
+            multiline=False,
+            size_hint_y=None,
+            height=dp(42),
+            background_normal="",
+            background_active="",
+            background_color=COLOR_CAJA_TEXTO,
+            foreground_color=COLOR_TEXTO_CAJA,
+            cursor_color=COLOR_VERDE_PRINCIPAL,
+            padding=[dp(10), dp(10), dp(10), dp(10)]
+        )
+        contenido.add_widget(buscador)
+
+        desplazamiento = ScrollView()
+        opciones = GridLayout(
+            cols=1,
+            spacing=dp(5),
+            size_hint_y=None
+        )
+        opciones.bind(minimum_height=opciones.setter("height"))
+        desplazamiento.add_widget(opciones)
+        contenido.add_widget(desplazamiento)
+
+        popup = Popup(
+            title="Seleccionar departamento",
+            content=contenido,
+            size_hint=(0.86, 0.82),
+            auto_dismiss=True
+        )
+
+        def actualizar_opciones(texto=""):
+            opciones.clear_widgets()
+            coincidencias = [
+                d for d in DEPARTAMENTOS_GUATEMALA
+                if texto.strip().casefold() in d.casefold()
+            ]
+            if not coincidencias:
+                opciones.add_widget(Label(
+                    text="No se encontraron coincidencias.",
+                    color=COLOR_TEXTO,
+                    size_hint_y=None,
+                    height=dp(42)
+                ))
+                return
+
+            for departamento in coincidencias:
+                boton = boton_estilizado(
+                    departamento, COLOR_VERDE_OSCURO, 42
+                )
+                boton.bind(
+                    on_release=lambda instancia, valor=departamento:
+                    seleccionar(valor)
+                )
+                opciones.add_widget(boton)
+
+        def seleccionar(valor):
+            self.text = valor
+            popup.dismiss()
+
+        buscador.bind(text=lambda instancia, valor: actualizar_opciones(valor))
+        actualizar_opciones()
+        popup.open()
+
+MESES_ESPANOL = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+]
+
+class ControlFecha(BoxLayout):
+    """Fecha que acepta escritura manual YYYY-MM-DD o selección en calendario."""
+
+    def __init__(self, texto="", **kwargs):
+        super().__init__(
+            orientation="horizontal",
+            spacing=dp(6),
+            size_hint_y=None,
+            height=dp(ALTURA_CAMPO),
+            **kwargs
+        )
+
+        self.campo = TextInput(
+            text=texto,
+            hint_text="YYYY-MM-DD",
+            multiline=False,
+            background_normal="",
+            background_active="",
+            background_color=COLOR_CAJA_TEXTO,
+            foreground_color=COLOR_TEXTO_CAJA,
+            hint_text_color=(0.45, 0.48, 0.45, 1),
+            cursor_color=COLOR_VERDE_PRINCIPAL,
+            padding=[dp(12), dp(12), dp(8), dp(12)]
+        )
+        self.add_widget(self.campo)
+
+        self.boton_calendario = boton_estilizado(
+            "Calendario", COLOR_VERDE_OSCURO, ALTURA_CAMPO
+        )
+        self.boton_calendario.size_hint_x = None
+        self.boton_calendario.width = dp(112)
+        self.boton_calendario.bind(on_release=self.abrir_calendario)
+        self.add_widget(self.boton_calendario)
+
+    @property
+    def text(self):
+        return self.campo.text
+
+    @text.setter
+    def text(self, valor):
+        self.campo.text = str(valor or "")
+
+    @property
+    def focus(self):
+        return self.campo.focus
+
+    @focus.setter
+    def focus(self, valor):
+        self.campo.focus = valor
+
+    def abrir_calendario(self, *_):
+        try:
+            inicial = datetime.strptime(self.text.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            inicial = date.today()
+
+        estado = {"anio": inicial.year, "mes": inicial.month}
+
+        contenido = BoxLayout(
+            orientation="vertical",
+            spacing=dp(8),
+            padding=dp(12)
+        )
+
+        encabezado = BoxLayout(
+            orientation="horizontal",
+            spacing=dp(8),
+            size_hint_y=None,
+            height=dp(42)
+        )
+        boton_anterior = boton_estilizado("<", COLOR_VERDE_OSCURO, 42)
+        boton_siguiente = boton_estilizado(">", COLOR_VERDE_OSCURO, 42)
+        titulo_mes = Label(
+            text="",
+            color=COLOR_TEXTO,
+            bold=True,
+            font_size="17sp"
+        )
+        encabezado.add_widget(boton_anterior)
+        encabezado.add_widget(titulo_mes)
+        encabezado.add_widget(boton_siguiente)
+        contenido.add_widget(encabezado)
+
+        calendario_grid = GridLayout(
+            cols=7,
+            spacing=dp(3),
+            size_hint_y=None
+        )
+        calendario_grid.bind(minimum_height=calendario_grid.setter("height"))
+        contenido.add_widget(calendario_grid)
+
+        popup = Popup(
+            title="Seleccionar fecha de siembra",
+            content=contenido,
+            size_hint=(0.88, 0.58),
+            auto_dismiss=True
+        )
+
+        def seleccionar_dia(dia):
+            self.text = f"{estado['anio']:04d}-{estado['mes']:02d}-{dia:02d}"
+            popup.dismiss()
+
+        def dibujar_calendario():
+            calendario_grid.clear_widgets()
+            titulo_mes.text = (
+                f"{MESES_ESPANOL[estado['mes'] - 1].capitalize()} {estado['anio']}"
+            )
+            for nombre_dia in ("L", "M", "X", "J", "V", "S", "D"):
+                calendario_grid.add_widget(Label(
+                    text=nombre_dia,
+                    color=COLOR_VERDE_CLARO,
+                    bold=True,
+                    size_hint_y=None,
+                    height=dp(30)
+                ))
+
+            semanas = calendar.monthcalendar(estado["anio"], estado["mes"])
+            for semana in semanas:
+                for dia in semana:
+                    if dia == 0:
+                        calendario_grid.add_widget(Label(
+                            text="",
+                            size_hint_y=None,
+                            height=dp(38)
+                        ))
+                    else:
+                        boton = boton_estilizado(
+                            str(dia), COLOR_VERDE_PRINCIPAL, 38
+                        )
+                        boton.bind(
+                            on_release=lambda instancia, valor=dia:
+                            seleccionar_dia(valor)
+                        )
+                        calendario_grid.add_widget(boton)
+
+        def cambiar_mes(cantidad):
+            nuevo_mes = estado["mes"] + cantidad
+            if nuevo_mes < 1:
+                estado["mes"] = 12
+                estado["anio"] -= 1
+            elif nuevo_mes > 12:
+                estado["mes"] = 1
+                estado["anio"] += 1
+            else:
+                estado["mes"] = nuevo_mes
+            dibujar_calendario()
+
+        boton_anterior.bind(on_release=lambda *_: cambiar_mes(-1))
+        boton_siguiente.bind(on_release=lambda *_: cambiar_mes(1))
+        dibujar_calendario()
+        popup.open()
+
+def fila_con_control(texto, control):
+    fila = BoxLayout(
+        orientation="horizontal",
+        spacing=dp(10),
+        size_hint_y=None,
+        height=dp(ALTURA_CAMPO)
+    )
+
+    etiqueta = Label(
+        text=texto,
+        color=COLOR_TEXTO,
+        size_hint_x=0.32,
+        halign="left",
+        valign="middle"
+    )
+    etiqueta.bind(
+        size=lambda instancia, valor:
+        setattr(instancia, "text_size", valor)
+    )
+
+    control.size_hint_x = 0.68
+    fila.add_widget(etiqueta)
+    fila.add_widget(control)
+    return fila, control
 
 class PantallaCultivos(ScrollView):
 
@@ -260,10 +536,6 @@ class PantallaCultivos(ScrollView):
         self.do_scroll_x = False
 
         self.en_edicion = None
-
-        # ====================================================
-        # CONTENEDOR PRINCIPAL
-        # ====================================================
 
         self.contenedor = BoxLayout(
             orientation="vertical",
@@ -287,10 +559,6 @@ class PantallaCultivos(ScrollView):
             self.contenedor
         )
 
-        # ====================================================
-        # TÍTULO
-        # ====================================================
-
         titulo = Label(
             text="CULTIVOS",
             color=COLOR_VERDE_CLARO,
@@ -310,10 +578,6 @@ class PantallaCultivos(ScrollView):
 
         self.contenedor.add_widget(titulo)
         self.contenedor.add_widget(subtitulo)
-
-        # ====================================================
-        # REGISTRAR CULTIVO
-        # ====================================================
 
         self.contenedor.add_widget(
             etiqueta_seccion(
@@ -342,9 +606,9 @@ class PantallaCultivos(ScrollView):
 
         self.contenedor.add_widget(fila)
 
-        fila, self.campo_localidad = fila_con_etiqueta(
-            "Localidad:",
-            "Ej. Alta Verapaz"
+        self.campo_localidad = ControlLocalidad()
+        fila, self.campo_localidad = fila_con_control(
+            "Localidad:", self.campo_localidad
         )
 
         self.contenedor.add_widget(fila)
@@ -363,16 +627,12 @@ class PantallaCultivos(ScrollView):
 
         self.contenedor.add_widget(fila)
 
-        fila, self.campo_fecha = fila_con_etiqueta(
-            "Siembra:",
-            "YYYY-MM-DD"
+        self.campo_fecha = ControlFecha()
+        fila, self.campo_fecha = fila_con_control(
+            "Siembra:", self.campo_fecha
         )
 
         self.contenedor.add_widget(fila)
-
-        # ====================================================
-        # MENSAJE
-        # ====================================================
 
         self.mensaje = Label(
             text="",
@@ -396,10 +656,6 @@ class PantallaCultivos(ScrollView):
         self.contenedor.add_widget(
             self.mensaje
         )
-
-        # ====================================================
-        # BOTONES REGISTRAR / LIMPIAR
-        # ====================================================
 
         fila_botones = BoxLayout(
             orientation="horizontal",
@@ -437,10 +693,6 @@ class PantallaCultivos(ScrollView):
         self.contenedor.add_widget(
             fila_botones
         )
-
-        # ====================================================
-        # BUSCAR
-        # ====================================================
 
         self.contenedor.add_widget(
             etiqueta_seccion(
@@ -494,10 +746,6 @@ class PantallaCultivos(ScrollView):
             self.resultado_busqueda
         )
 
-        # ====================================================
-        # ORDENAR
-        # ====================================================
-
         self.contenedor.add_widget(
             etiqueta_seccion(
                 "ORDENAR"
@@ -516,10 +764,6 @@ class PantallaCultivos(ScrollView):
         self.contenedor.add_widget(
             boton_ordenar
         )
-
-        # ====================================================
-        # ELIMINAR
-        # ====================================================
 
         self.contenedor.add_widget(
             etiqueta_seccion(
@@ -548,10 +792,6 @@ class PantallaCultivos(ScrollView):
             boton_eliminar
         )
 
-        # ====================================================
-        # LISTA DE CULTIVOS
-        # ====================================================
-
         self.contenedor.add_widget(
             etiqueta_seccion(
                 "TUS CULTIVOS"
@@ -574,12 +814,7 @@ class PantallaCultivos(ScrollView):
             self.lista_cultivos
         )
 
-        # Cargar cultivos guardados
         self.actualizar_lista()
-
-    # ========================================================
-    # REGISTRAR CULTIVO
-    # ========================================================
 
     def registrar_cultivo(self, instance):
 
@@ -590,10 +825,6 @@ class PantallaCultivos(ScrollView):
         parcela = self.campo_parcela.text.strip()
         tamano = self.campo_tamano.text.strip()
         fecha = self.campo_fecha.text.strip()
-
-        # ----------------------------------------------------
-        # CAMPOS VACÍOS
-        # ----------------------------------------------------
 
         if not all([
             nombre,
@@ -613,10 +844,6 @@ class PantallaCultivos(ScrollView):
 
             return
 
-        # ----------------------------------------------------
-        # TAMAÑO
-        # ----------------------------------------------------
-
         try:
 
             tamano_numero = float(tamano)
@@ -635,10 +862,6 @@ class PantallaCultivos(ScrollView):
 
             return
 
-        # ----------------------------------------------------
-        # FECHA
-        # ----------------------------------------------------
-
         try:
 
             datetime.strptime(
@@ -656,10 +879,6 @@ class PantallaCultivos(ScrollView):
             self.mensaje.color = COLOR_ERROR
 
             return
-
-        # ====================================================
-        # MODO EDICIÓN
-        # ====================================================
 
         if self.en_edicion:
 
@@ -699,10 +918,6 @@ class PantallaCultivos(ScrollView):
 
             return
 
-        # ====================================================
-        # NUEVO CULTIVO
-        # ====================================================
-
         codigo = gestor.generar_codigo()
 
         nuevo_cultivo = Cultivo(
@@ -731,10 +946,6 @@ class PantallaCultivos(ScrollView):
 
         self.actualizar_lista()
 
-    # ========================================================
-    # LIMPIAR FORMULARIO
-    # ========================================================
-
     def _limpiar_formulario(self):
 
         self.campo_nombre.text = ""
@@ -755,10 +966,6 @@ class PantallaCultivos(ScrollView):
             self.boton_registrar.text = (
                 "Registrar cultivo"
             )
-
-    # ========================================================
-    # EDITAR CULTIVO
-    # ========================================================
 
     def _entrar_a_modo_edicion(self, codigo):
 
@@ -823,10 +1030,6 @@ class PantallaCultivos(ScrollView):
 
         self.mensaje.color = COLOR_INFO
 
-    # ========================================================
-    # BUSCAR CULTIVO
-    # ========================================================
-
     def buscar_cultivo(self, instance):
 
         texto = (
@@ -867,8 +1070,6 @@ class PantallaCultivos(ScrollView):
             texto_resultado
         )
 
-        # Colocar automáticamente el primer
-        # resultado en el campo de eliminación
         self.mostrar_seleccionado(
             resultados[0]
         )
@@ -878,10 +1079,6 @@ class PantallaCultivos(ScrollView):
         self.campo_codigo_eliminar.text = (
             cultivo.codigo
         )
-
-    # ========================================================
-    # ORDENAR
-    # ========================================================
 
     def ordenar_cultivos(self, instance):
 
@@ -895,10 +1092,6 @@ class PantallaCultivos(ScrollView):
         self.mensaje.color = COLOR_INFO
 
         self.actualizar_lista()
-
-    # ========================================================
-    # ELIMINAR CULTIVO
-    # ========================================================
 
     def eliminar_cultivo(self, instance):
 
@@ -934,10 +1127,6 @@ class PantallaCultivos(ScrollView):
             self.mensaje.color = COLOR_ERROR
 
             return
-
-        # ====================================================
-        # POPUP
-        # ====================================================
 
         contenido = BoxLayout(
             orientation="vertical",
@@ -1038,10 +1227,6 @@ class PantallaCultivos(ScrollView):
 
         self.actualizar_lista()
 
-    # ========================================================
-    # NORMALIZAR CÓDIGO
-    # ========================================================
-
     def _normalizar_codigo(self, codigo):
 
         codigo = codigo.strip().upper()
@@ -1067,22 +1252,11 @@ class PantallaCultivos(ScrollView):
 
             return codigo
 
-    # ========================================================
-    # ACTUALIZAR LISTA
-    # ========================================================
-
     def actualizar_lista(self):
 
         self.lista_cultivos.clear_widgets()
 
-        # IMPORTANTE:
-        # Usamos directamente la lista que tiene
-        # GestorCultivos y que fue cargada desde JSON.
         cultivos = gestor.lista_cultivos
-
-        # ----------------------------------------------------
-        # NO HAY CULTIVOS
-        # ----------------------------------------------------
 
         if not cultivos:
 
@@ -1103,10 +1277,6 @@ class PantallaCultivos(ScrollView):
 
             return
 
-        # ====================================================
-        # CREAR TARJETAS
-        # ====================================================
-
         for cultivo in cultivos:
 
             tarjeta = BoxLayout(
@@ -1121,10 +1291,6 @@ class PantallaCultivos(ScrollView):
                 size_hint_y=None,
                 height=dp(ALTURA_TARJETA)
             )
-
-            # ------------------------------------------------
-            # FONDO REDONDEADO
-            # ------------------------------------------------
 
             with tarjeta.canvas.before:
 
@@ -1154,10 +1320,6 @@ class PantallaCultivos(ScrollView):
                 pos=actualizar_tarjeta,
                 size=actualizar_tarjeta
             )
-
-            # ------------------------------------------------
-            # ENCABEZADO
-            # ------------------------------------------------
 
             encabezado = BoxLayout(
                 orientation="horizontal",
@@ -1215,10 +1377,6 @@ class PantallaCultivos(ScrollView):
             tarjeta.add_widget(
                 encabezado
             )
-
-            # ------------------------------------------------
-            # INFORMACIÓN
-            # ------------------------------------------------
 
             info1 = Label(
                 text=(
@@ -1298,10 +1456,6 @@ class PantallaCultivos(ScrollView):
                 info3
             )
 
-            # ------------------------------------------------
-            # BOTÓN EDITAR
-            # ------------------------------------------------
-
             boton_editar = boton_estilizado(
                 "Editar cultivo",
                 COLOR_VERDE_OSCURO,
@@ -1324,17 +1478,11 @@ class PantallaCultivos(ScrollView):
                 tarjeta
             )
 
-
-# ============================================================
-# PRUEBA INDIVIDUAL
-# ============================================================
-
 class AgroSmartApp(App):
 
     def build(self):
 
         return PantallaCultivos()
-
 
 if __name__ == "__main__":
 
