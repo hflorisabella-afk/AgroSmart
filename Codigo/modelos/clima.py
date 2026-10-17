@@ -2,11 +2,25 @@
 # Modulo de Clima y Alertas - AgroSmart
 # Usa la API gratuita de Open-Meteo (no requiere API key).
 # Instalar antes: pip install requests
+#
+# La ubicacion se puede dar de 3 formas:
+#   1. Nombre de cualquier lugar: municipio, aldea, caserio, finca, ciudad, pais...
+#      (ej: "Chimaltenango", "Aldea San Jose Poaquil", "Antigua Guatemala")
+#   2. Coordenadas "latitud, longitud" (ej: "14.6569, -90.8206"), sirve para
+#      cualquier punto del mapa, incluso donde no hay nombre registrado.
+#   3. Ubicacion actual (texto vacio, "aqui" o "mi ubicacion"): se detecta por IP.
 
+import re
 import requests
 import time
 from modelos.ordenamiento_clima import merge_sort
 
+# Ubicacion que se usa si no se puede detectar la actual
+LOCALIDAD_POR_DEFECTO = "Chimaltenango"
+
+# Pais donde se busca primero cuando un nombre es ambiguo (codigo de 2 letras).
+# "gt" = Guatemala. Ponlo en None para buscar en todo el mundo sin preferencia.
+PAIS_PREFERIDO = "gt"
 
 
 class Clima:
@@ -79,46 +93,185 @@ def _guardar_en_cache(clave, valor):
     _CACHE[clave] = (valor, time.time())
 
 
-def obtener_coordenadas(localidad):
+# --- Resolucion de ubicaciones (nombre, coordenadas o ubicacion actual) ---
+
+# Patron para textos como "14.6569, -90.8206" o "14.6569 -90.8206"
+_PATRON_COORDENADAS = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$")
+
+# Textos que significan "usa donde estoy ahora"
+_TEXTOS_UBICACION_ACTUAL = {"", "aqui", "aquí", "mi ubicacion", "mi ubicación", "ubicacion actual", "ubicación actual"}
+
+
+def _leer_coordenadas(texto):
+    """Si el texto son coordenadas validas devuelve (lat, lon); si no, None."""
+    coincidencia = _PATRON_COORDENADAS.match(texto)
+    if not coincidencia:
+        return None
+    lat = float(coincidencia.group(1))
+    lon = float(coincidencia.group(2))
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise ValueError("Las coordenadas estan fuera de rango (lat -90 a 90, lon -180 a 180)")
+    return lat, lon
+
+
+def obtener_ubicacion_actual():
     """
-    Convierte el nombre de una localidad (ej: "Chimaltenango") en
-    latitud/longitud usando el geocodificador gratuito de Open-Meteo.
+    Detecta la ubicacion aproximada del usuario a partir de su IP
+    (servicio gratuito ipwho.is, sin API key). Devuelve (lat, lon, nombre).
+    Es aproximada: puede marcar la ciudad del proveedor de internet.
     """
-    clave_cache = f"coords:{localidad.lower()}"
-    en_cache = _obtener_de_cache(clave_cache)
+    en_cache = _obtener_de_cache("ubicacion_actual")
     if en_cache is not None:
         return en_cache
 
+    respuesta = requests.get("https://ipwho.is/", timeout=10)
+    respuesta.raise_for_status()
+    datos = respuesta.json()
+
+    if not datos.get("success", False):
+        raise ValueError("No se pudo detectar tu ubicacion actual")
+
+    nombre = datos.get("city") or datos.get("region") or datos.get("country") or "Ubicacion actual"
+    resultado = (datos["latitude"], datos["longitude"], nombre)
+
+    _guardar_en_cache("ubicacion_actual", resultado)
+    return resultado
+
+
+def _buscar_en_open_meteo(nombre):
+    """Geocodificador 1 (rapido, ciudades y municipios). Devuelve (lat, lon, nombre) o None."""
     url = "https://geocoding-api.open-meteo.com/v1/search"
-    params = {"name": localidad, "count": 1, "language": "es"}
+    params = {"name": nombre, "count": 1, "language": "es"}
 
     respuesta = requests.get(url, params=params, timeout=10)
     respuesta.raise_for_status()
     datos = respuesta.json()
 
     if "results" not in datos or len(datos["results"]) == 0:
-        raise ValueError(f"No se encontro la localidad '{localidad}'")
+        return None
 
-    resultado = datos["results"][0]
-    coordenadas = (resultado["latitude"], resultado["longitude"])
+    r = datos["results"][0]
+    return r["latitude"], r["longitude"], r.get("name", nombre)
 
-    _guardar_en_cache(clave_cache, coordenadas)
-    return coordenadas
+
+def _buscar_en_nominatim(nombre, pais=None):
+    """
+    Geocodificador 2: OpenStreetMap (Nominatim). Conoce muchisimos mas lugares:
+    aldeas, caserios, fincas, colonias, calles, negocios, etc.
+    Devuelve (lat, lon, nombre) o None.
+    """
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {"q": nombre, "format": "jsonv2", "limit": 1, "accept-language": "es"}
+    if pais:
+        params["countrycodes"] = pais
+    # Nominatim exige identificarse con un User-Agent propio
+    cabeceras = {"User-Agent": "AgroSmart/1.0 (proyecto escolar)"}
+
+    respuesta = requests.get(url, params=params, headers=cabeceras, timeout=10)
+    respuesta.raise_for_status()
+    datos = respuesta.json()
+
+    if len(datos) == 0:
+        return None
+
+    r = datos[0]
+    nombre_mostrar = r.get("name") or r.get("display_name", nombre).split(",")[0]
+    return float(r["lat"]), float(r["lon"]), nombre_mostrar
+
+
+def _buscar_por_nombre(nombre):
+    """
+    Busca un nombre de lugar en varios servicios, de mas a menos preciso:
+      1. Open-Meteo (municipios y ciudades)
+      2. OpenStreetMap en PAIS_PREFERIDO (aldeas, fincas, colonias...)
+      3. OpenStreetMap en todo el mundo
+    Devuelve (lat, lon, nombre) o None si ninguno lo conoce.
+    """
+    encontrado = _buscar_en_open_meteo(nombre)
+    if encontrado is not None:
+        return encontrado
+
+    if PAIS_PREFERIDO:
+        encontrado = _buscar_en_nominatim(nombre, PAIS_PREFERIDO)
+        if encontrado is not None:
+            return encontrado
+        time.sleep(1)  # Nominatim permite maximo 1 consulta por segundo
+
+    return _buscar_en_nominatim(nombre)
+
+
+def resolver_ubicacion(entrada):
+    """
+    Convierte lo que escriba el usuario en (latitud, longitud, nombre_para_mostrar).
+    Acepta: nombre de cualquier lugar, coordenadas o ubicacion actual.
+    Si el lugar exacto no existe (ej: "Finca El Sol, Chimaltenango") prueba con
+    las partes mas generales hasta encontrar algo.
+    """
+    texto = (entrada or "").strip()
+    clave_cache = f"ubicacion:{texto.lower()}"
+    en_cache = _obtener_de_cache(clave_cache)
+    if en_cache is not None:
+        return en_cache
+
+    # 1. Ubicacion actual
+    if texto.lower() in _TEXTOS_UBICACION_ACTUAL:
+        resultado = obtener_ubicacion_actual()
+
+    else:
+        # 2. Coordenadas directas
+        coordenadas = _leer_coordenadas(texto)
+        if coordenadas is not None:
+            lat, lon = coordenadas
+            resultado = (lat, lon, f"{lat:.4f}, {lon:.4f}")
+
+        else:
+            # 3. Nombre de lugar: primero el texto completo y, si no aparece,
+            # las partes separadas por coma de derecha a izquierda (de lo
+            # general a lo especifico)
+            intentos = [texto]
+            partes = [p.strip() for p in texto.split(",") if p.strip()]
+            if len(partes) > 1:
+                intentos.extend(reversed(partes))
+
+            resultado = None
+            for intento in intentos:
+                encontrado = _buscar_por_nombre(intento)
+                if encontrado is not None:
+                    resultado = encontrado
+                    break
+
+            if resultado is None:
+                raise ValueError(
+                    f"No se encontro la ubicacion '{texto}'. "
+                    "Prueba con otro nombre o escribe las coordenadas (ej: 14.6569, -90.8206)."
+                )
+
+    _guardar_en_cache(clave_cache, resultado)
+    return resultado
+
+
+def obtener_coordenadas(localidad):
+    """
+    Devuelve (latitud, longitud) para cualquier ubicacion: nombre, coordenadas
+    o ubicacion actual. Se mantiene para no romper el resto del proyecto.
+    """
+    lat, lon, _ = resolver_ubicacion(localidad)
+    return lat, lon
 
 
 def obtener_clima_actual(localidad):
     """
     Devuelve un objeto Clima con la temperatura y probabilidad de lluvia
-    actuales para la localidad indicada. Usa cache para no pedir datos
-    nuevos si ya se consulto hace poco.
+    actuales para la ubicacion indicada (nombre, coordenadas o ubicacion
+    actual). Usa cache para no pedir datos nuevos si ya se consulto hace poco.
     """
-    clave_cache = f"actual:{localidad.lower()}"
+    clave_cache = f"actual:{(localidad or '').strip().lower()}"
     en_cache = _obtener_de_cache(clave_cache)
     if en_cache is not None:
         return en_cache
 
     try:
-        lat, lon = obtener_coordenadas(localidad)
+        lat, lon, nombre = resolver_ubicacion(localidad)
 
         url = "https://api.open-meteo.com/v1/forecast"
         params = {
@@ -138,7 +291,7 @@ def obtener_clima_actual(localidad):
         codigo = actual.get("weather_code", 0)
         descripcion = CODIGOS_CLIMA.get(codigo, "Sin descripcion")
 
-        clima = Clima(localidad, temperatura, probabilidad_lluvia, descripcion)
+        clima = Clima(nombre, temperatura, probabilidad_lluvia, descripcion)
         _guardar_en_cache(clave_cache, clima)
         return clima
 
@@ -154,14 +307,15 @@ def obtener_pronostico_dias(localidad, dias=5):
     """
     Devuelve una lista de objetos Clima, uno por cada dia del pronostico
     (temperatura maxima y probabilidad de lluvia de ese dia). Usa cache.
+    Acepta nombre, coordenadas o ubicacion actual.
     """
-    clave_cache = f"pronostico:{localidad.lower()}:{dias}"
+    clave_cache = f"pronostico:{(localidad or '').strip().lower()}:{dias}"
     en_cache = _obtener_de_cache(clave_cache)
     if en_cache is not None:
         return en_cache
 
     try:
-        lat, lon = obtener_coordenadas(localidad)
+        lat, lon, nombre = resolver_ubicacion(localidad)
 
         url = "https://api.open-meteo.com/v1/forecast"
         params = {
@@ -186,7 +340,7 @@ def obtener_pronostico_dias(localidad, dias=5):
             codigo = diario["weather_code"][i]
             descripcion = CODIGOS_CLIMA.get(codigo, "Sin descripcion")
 
-            clima_dia = Clima(f"{localidad} ({fecha})", temperatura, probabilidad_lluvia, descripcion)
+            clima_dia = Clima(f"{nombre} ({fecha})", temperatura, probabilidad_lluvia, descripcion)
             lista_climas.append(clima_dia)
 
         _guardar_en_cache(clave_cache, lista_climas)
@@ -209,9 +363,19 @@ def generar_pronostico(lista_climas):
 
 # --- Zona de prueba ---
 if __name__ == "__main__":
-    localidad = input("¿En qué localidad está tu cultivo? ").strip()
+    print("Puedes escribir:")
+    print("  - Un lugar (municipio, aldea, finca, ciudad...): Chimaltenango")
+    print("  - Coordenadas: 14.6569, -90.8206")
+    print("  - Nada (Enter) para usar tu ubicacion actual")
+    localidad = input("¿Dónde está tu cultivo? ").strip()
+
     if not localidad:
-        localidad = "Chimaltenango"  # valor por defecto si no escriben nada
+        # Sin texto: se intenta detectar la ubicacion actual; si falla, se usa el valor por defecto
+        try:
+            obtener_ubicacion_actual()
+        except (requests.exceptions.RequestException, ValueError):
+            print(f"No se pudo detectar tu ubicacion, se usara {LOCALIDAD_POR_DEFECTO}.")
+            localidad = LOCALIDAD_POR_DEFECTO
 
     print("--- Clima actual ---")
     clima_actual = obtener_clima_actual(localidad)
