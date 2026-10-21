@@ -1,6 +1,15 @@
 from datetime import datetime, timedelta
 import json
 import os
+import sys
+
+# Para poder importar el árbol que está en la carpeta estructuras/
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "estructuras")
+)
+
+from arbol_eventos import ArbolEventos
+from fechas import normalizar_fecha_segura
 
 
 class EventoCalendario:
@@ -57,6 +66,9 @@ class GestorCalendario:
         # Lista de eventos
         self.eventos = []
 
+        # Árbol binario que mantiene los eventos ordenados por fecha
+        self.arbol = ArbolEventos()
+
         # Archivo donde se guardan los eventos
         self.archivo = os.path.join(
             os.path.dirname(__file__),
@@ -87,8 +99,19 @@ class GestorCalendario:
     def agregar_evento(self, evento):
 
         self.eventos.append(evento)
+        self.arbol.insertar(evento)
 
         self.guardar_datos()
+
+    # =====================================================
+    # EVENTOS ORDENADOS (usa el árbol)
+    # =====================================================
+
+    def eventos_ordenados(self):
+
+        # Recorrido en orden del árbol:
+        # los eventos salen ordenados por fecha
+        return self.arbol.en_orden()
 
     # =====================================================
     # GUARDAR DATOS
@@ -155,7 +178,8 @@ class GestorCalendario:
                     codigo=dato["codigo"],
                     codigo_cultivo=dato["codigo_cultivo"],
                     tipo=dato["tipo"],
-                    fecha=dato["fecha"],
+                    # Si la fecha vieja venía sin cero (2026-10-8), aquí se corrige
+                    fecha=normalizar_fecha_segura(dato["fecha"]),
                     descripcion=dato.get(
                         "descripcion",
                         ""
@@ -163,6 +187,7 @@ class GestorCalendario:
                 )
 
                 self.eventos.append(evento)
+                self.arbol.insertar(evento)
 
         except (
             json.JSONDecodeError,
@@ -278,10 +303,7 @@ class GestorCalendario:
             "\n--- AGENDA DE EVENTOS AGRÍCOLAS ---"
         )
 
-        eventos_ordenados = sorted(
-            self.eventos,
-            key=lambda evento: evento.fecha
-        )
+        eventos_ordenados = self.eventos_ordenados()
 
         for evento in eventos_ordenados:
 

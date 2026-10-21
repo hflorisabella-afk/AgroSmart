@@ -29,6 +29,7 @@ sys.path.append(
 
 from gestor_cultivos import GestorCultivos
 from calendario import GestorCalendario, EventoCalendario
+from fechas import normalizar_fecha
 
 
 # =========================================================
@@ -847,9 +848,8 @@ class PantallaCalendario(ScrollView):
 
         self.lista_eventos.clear_widgets()
 
-        eventos = list(
-            self.gestor_calendario.eventos
-        )
+        # El árbol binario ya entrega los eventos ordenados por fecha
+        eventos = self.gestor_calendario.eventos_ordenados()
 
         # -------------------------------------------------
         # FILTRAR POR CULTIVO
@@ -864,15 +864,6 @@ class PantallaCalendario(ScrollView):
                 ==
                 self.cultivo_seleccionado.codigo
             ]
-
-        # -------------------------------------------------
-        # ORDENAR POR FECHA
-        # -------------------------------------------------
-
-        eventos = sorted(
-            eventos,
-            key=lambda evento: evento.fecha
-        )
 
         # -------------------------------------------------
         # NO HAY EVENTOS
@@ -1367,10 +1358,9 @@ class PantallaCalendario(ScrollView):
 
         try:
 
-            datetime.strptime(
-                fecha,
-                "%Y-%m-%d"
-            )
+            # Valida la fecha y la guarda siempre con ceros
+            # (por ejemplo 2026-10-08)
+            fecha = normalizar_fecha(fecha)
 
         except ValueError:
 

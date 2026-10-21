@@ -49,6 +49,7 @@ class TablaHash:
         casillero.append((llave, valor))
 
     def buscar(self, llave):
+
         # --- BUSCAR ---
         # Complejidad temporal: O(1) en el caso promedio -> calculamos el
         # casillero directo y solo revisamos ese (normalmente tiene 0 o 1 elementos).
@@ -61,6 +62,21 @@ class TablaHash:
                 return valor
 
         return None  # no se encontró
+
+    def eliminar(self, llave):
+        # --- ELIMINAR ---
+        # Complejidad temporal: O(1) en el caso promedio.
+        indice = self._calcular_indice(llave)
+        casillero = self.casilleros[indice]
+
+        for posicion, (llave_guardada, _) in enumerate(casillero):
+            if llave_guardada == llave:
+                casillero.pop(posicion)
+                return True
+
+        return False
+
+
 
 
 # --- Zona de prueba ---

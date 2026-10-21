@@ -12,13 +12,8 @@ CARPETA_CODIGO = os.path.dirname(os.path.abspath(__file__))
 
 # Le decimos a Python dónde buscar cada pantalla,
 # ya que viven en carpetas distintas.
-sys.path.append(
-    os.path.join(CARPETA_CODIGO, "pantallas")
-)
-
-sys.path.append(
-    os.path.join(CARPETA_CODIGO, "riego")
-)
+sys.path.append(os.path.join(CARPETA_CODIGO, "pantallas"))
+sys.path.append(os.path.join(CARPETA_CODIGO, "riego"))
 
 
 # ============================================================
@@ -45,153 +40,39 @@ import pantalla_clima
 import pantalla_riego
 import pantalla_calendario
 import pantalla_inventario
+import pantalla_optimizacion
 
 
 # ============================================================
-# PANTALLA CULTIVOS
+# PANTALLA GENÉRICA (sirve para todos los módulos)
 # ============================================================
 
-class ScreenCultivos(Screen):
+class ScreenModulo(Screen):
 
-    def __init__(self, **kwargs):
+    def __init__(self, modulo, nombre_clase, **kwargs):
 
         super().__init__(**kwargs)
 
-        self.add_widget(
-            pantalla_cultivos.PantallaCultivos()
-        )
+        self.modulo = modulo
+
+        self.pantalla = getattr(modulo, nombre_clase)()
+
+        self.add_widget(self.pantalla)
 
     def on_enter(self):
 
-        Window.clearcolor = (
-            pantalla_cultivos.COLOR_FONDO
-        )
+        Window.clearcolor = self.modulo.COLOR_FONDO
 
-
-# ============================================================
-# PANTALLA CLIMA
-# ============================================================
-
-class ScreenClima(Screen):
-
-    def __init__(self, **kwargs):
-
-        super().__init__(**kwargs)
-
-        self.pantalla = (
-            pantalla_clima.PantallaClima()
-        )
-
-        self.add_widget(
-            self.pantalla
-        )
-
-    def on_enter(self):
-
-        Window.clearcolor = (
-            pantalla_clima.COLOR_FONDO
-        )
-
-        # Actualizar los cultivos cada vez
-        # que entramos a Clima.
-        self.pantalla.actualizar_lista()
-
-
-# ============================================================
-# PANTALLA RIEGO
-# ============================================================
-
-class ScreenRiego(Screen):
-
-    def __init__(self, **kwargs):
-
-        super().__init__(**kwargs)
-
-        self.pantalla = (
-            pantalla_riego.PantallaRiego()
-        )
-
-        self.add_widget(
-            self.pantalla
-        )
-
-    def on_enter(self):
-
-        Window.clearcolor = (
-            pantalla_riego.COLOR_FONDO
-        )
-
-        # Actualizar los cultivos cada vez
-        # que entramos a Riego.
-        self.pantalla.actualizar_lista()
-
-
-# ============================================================
-# PANTALLA CALENDARIO
-# ============================================================
-
-class ScreenCalendario(Screen):
-
-    def __init__(self, **kwargs):
-
-        super().__init__(**kwargs)
-
-        self.pantalla = (
-            pantalla_calendario.PantallaCalendario()
-        )
-
-        self.add_widget(
-            self.pantalla
-        )
-
-    def on_enter(self):
-
-        Window.clearcolor = (
-            pantalla_calendario.COLOR_FONDO
-        )
-
-        # Actualizar los cultivos cada vez
-        # que entramos a Calendario.
-        self.pantalla.actualizar_lista()
-
-
-# ============================================================
-# PANTALLA INVENTARIO
-# ============================================================
-
-class ScreenInventario(Screen):
-
-    def __init__(self, **kwargs):
-
-        super().__init__(**kwargs)
-
-        self.pantalla = (
-            pantalla_inventario.PantallaInventario()
-        )
-
-        self.add_widget(
-            self.pantalla
-        )
-
-    def on_enter(self):
-
-        Window.clearcolor = (
-            pantalla_inventario.COLOR_FONDO
-        )
-
-        # Actualizar el inventario cada vez
-        # que entramos a esta pantalla.
-        self.pantalla.actualizar_lista()
+        # Actualizar los datos cada vez que entramos a la pantalla.
+        if hasattr(self.pantalla, "actualizar_lista"):
+            self.pantalla.actualizar_lista()
 
 
 # ============================================================
 # BOTÓN DE NAVEGACIÓN
 # ============================================================
 
-def boton_de_navegacion(
-    texto,
-    color_fondo
-):
+def boton_de_navegacion(texto, color_fondo):
 
     return Button(
         text=texto,
@@ -215,6 +96,26 @@ class PantallaPrincipal(BoxLayout):
 
         self.orientation = "vertical"
 
+        # (nombre interno, texto del botón, módulo, clase, color del botón)
+        modulos = [
+            ("cultivos", "Cultivos", pantalla_cultivos,
+             "PantallaCultivos", pantalla_cultivos.COLOR_VERDE_PRINCIPAL),
+
+            ("clima", "Clima", pantalla_clima,
+             "PantallaClima", pantalla_clima.COLOR_AZUL_BOTON),
+
+            ("riego", "Riego", pantalla_riego,
+             "PantallaRiego", pantalla_riego.COLOR_AZUL_PRINCIPAL),
+
+            ("calendario", "Calendario", pantalla_calendario,
+             "PantallaCalendario", pantalla_calendario.COLOR_MORADO_PRINCIPAL),
+
+            ("inventario", "Inventario", pantalla_inventario,
+             "PantallaInventario", pantalla_inventario.COLOR_AMARILLO_PRINCIPAL),
+
+            ("optimizar", "Optimizar", pantalla_optimizacion,
+             "PantallaOptimizacion", pantalla_optimizacion.COLOR_NARANJA_PRINCIPAL),
+        ]
 
         # ====================================================
         # BARRA DE NAVEGACIÓN
@@ -228,107 +129,7 @@ class PantallaPrincipal(BoxLayout):
             padding=4
         )
 
-
-        # ----------------------------------------------------
-        # CULTIVOS
-        # ----------------------------------------------------
-
-        boton_cultivos = boton_de_navegacion(
-            "Cultivos",
-            pantalla_cultivos.COLOR_VERDE_PRINCIPAL
-        )
-
-        boton_cultivos.bind(
-            on_press=lambda instancia:
-            self.cambiar_pantalla("cultivos")
-        )
-
-        barra.add_widget(
-            boton_cultivos
-        )
-
-
-        # ----------------------------------------------------
-        # CLIMA
-        # ----------------------------------------------------
-
-        boton_clima = boton_de_navegacion(
-            "Clima",
-            pantalla_clima.COLOR_AZUL_BOTON
-        )
-
-        boton_clima.bind(
-            on_press=lambda instancia:
-            self.cambiar_pantalla("clima")
-        )
-
-        barra.add_widget(
-            boton_clima
-        )
-
-
-        # ----------------------------------------------------
-        # RIEGO
-        # ----------------------------------------------------
-
-        boton_riego = boton_de_navegacion(
-            "Riego",
-            pantalla_riego.COLOR_AZUL_PRINCIPAL
-        )
-
-        boton_riego.bind(
-            on_press=lambda instancia:
-            self.cambiar_pantalla("riego")
-        )
-
-        barra.add_widget(
-            boton_riego
-        )
-
-
-        # ----------------------------------------------------
-        # CALENDARIO
-        # ----------------------------------------------------
-
-        boton_calendario = boton_de_navegacion(
-            "Calendario",
-            pantalla_calendario.COLOR_MORADO_PRINCIPAL
-        )
-
-        boton_calendario.bind(
-            on_press=lambda instancia:
-            self.cambiar_pantalla("calendario")
-        )
-
-        barra.add_widget(
-            boton_calendario
-        )
-
-
-        # ----------------------------------------------------
-        # INVENTARIO
-        # ----------------------------------------------------
-
-        boton_inventario = boton_de_navegacion(
-            "Inventario",
-            pantalla_inventario.COLOR_AMARILLO_PRINCIPAL
-        )
-
-        boton_inventario.bind(
-            on_press=lambda instancia:
-            self.cambiar_pantalla("inventario")
-        )
-
-        barra.add_widget(
-            boton_inventario
-        )
-
-
-        # Agregar barra de navegación
-        self.add_widget(
-            barra
-        )
-
+        self.add_widget(barra)
 
         # ====================================================
         # ADMINISTRADOR DE PANTALLAS
@@ -338,56 +139,28 @@ class PantallaPrincipal(BoxLayout):
             transition=NoTransition()
         )
 
+        for nombre, texto, modulo, clase, color in modulos:
 
-        # ----------------------------------------------------
-        # REGISTRAR TODAS LAS PANTALLAS
-        # ----------------------------------------------------
+            boton = boton_de_navegacion(texto, color)
 
-        self.manager.add_widget(
-            ScreenCultivos(
-                name="cultivos"
+            boton.bind(
+                on_press=lambda instancia, n=nombre:
+                self.cambiar_pantalla(n)
             )
-        )
 
-        self.manager.add_widget(
-            ScreenClima(
-                name="clima"
+            barra.add_widget(boton)
+
+            self.manager.add_widget(
+                ScreenModulo(modulo, clase, name=nombre)
             )
-        )
 
-        self.manager.add_widget(
-            ScreenRiego(
-                name="riego"
-            )
-        )
-
-        self.manager.add_widget(
-            ScreenCalendario(
-                name="calendario"
-            )
-        )
-
-        self.manager.add_widget(
-            ScreenInventario(
-                name="inventario"
-            )
-        )
-
-
-        # Agregar administrador de pantallas
-        self.add_widget(
-            self.manager
-        )
-
+        self.add_widget(self.manager)
 
     # ========================================================
     # CAMBIAR DE PANTALLA
     # ========================================================
 
-    def cambiar_pantalla(
-        self,
-        nombre
-    ):
+    def cambiar_pantalla(self, nombre):
 
         self.manager.current = nombre
 
@@ -402,10 +175,7 @@ class AgroSmartApp(App):
 
         self.title = "AgroSmart"
 
-        Window.size = (
-            800,
-            850
-        )
+        Window.size = (800, 850)
 
         return PantallaPrincipal()
 

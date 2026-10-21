@@ -14,6 +14,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "estructuras"))
 
 from cultivo import Cultivo
 from tabla_hash import TablaHash
+from fechas import normalizar_fecha_segura
 
 # Este es el nombre del archivo donde se van a guardar todos los cultivos.
 # Se va a crear automáticamente junto a este mismo archivo (dentro de modelos/).
@@ -25,7 +26,6 @@ class GestorCultivos:
         self.lista_cultivos = []
         self.contador = 0
         # --- TABLA HASH ---
-        # Un diccionario en Python es, por dentro, una Tabla Hash.
         # La usamos para encontrar un cultivo por su código de forma INSTANTÁNEA,
         # sin tener que recorrer toda la lista como en la búsqueda lineal.
         # La "llave" es el código (ej. "CULT001") y el "valor" es el objeto Cultivo completo.
@@ -52,8 +52,8 @@ class GestorCultivos:
 
         # Lo quitamos de la lista principal
         self.lista_cultivos.remove(cultivo_encontrado)
-        # También lo quitamos de la tabla hash, insertando un valor vacío en su lugar
-        self.tabla_hash_codigos.insertar(codigo_a_eliminar, None)
+        # También lo quitamos de la tabla hash
+        self.tabla_hash_codigos.eliminar(codigo_a_eliminar)
         self.guardar_datos()
         return True  # se eliminó correctamente
 
@@ -97,12 +97,11 @@ class GestorCultivos:
     def buscar_por_codigo_hash(self, codigo_buscado):
         # --- BÚSQUEDA POR TABLA HASH ---
         # A diferencia de la búsqueda lineal, aquí NO recorremos nada:
-        # el diccionario calcula directamente en qué "casillero" está guardado
+        # se calcula directamente en qué "casillero" está guardado
         # el cultivo según su código, y lo entrega de inmediato.
-        # Complejidad temporal: O(1) en el caso promedio -> no importa si hay 10 o 10,000 cultivos.
-        # Complejidad espacial: O(n) -> porque guardamos una copia de cada cultivo en el diccionario.
+        # Complejidad temporal: O(1) en el caso promedio.
+        # Complejidad espacial: O(n) -> porque guardamos una referencia a cada cultivo.
         return self.tabla_hash_codigos.buscar(codigo_buscado)
-        # .buscar() devuelve None automáticamente si el código no existe, sin dar error
 
     def buscar_por_nombre_binaria(self, nombre_buscado):
         # --- BÚSQUEDA BINARIA ---
@@ -111,14 +110,13 @@ class GestorCultivos:
         # La idea: en vez de revisar uno por uno, cada vez "parte a la mitad" el
         # espacio de búsqueda, descartando la mitad donde el nombre NO puede estar.
         #
-        # Complejidad temporal: O(log n) -> muchísimo más rápido que O(n) en listas grandes.
+        # Complejidad temporal: O(log n) (sin contar el ordenamiento previo).
         # Complejidad espacial: O(n) -> por la copia ordenada que creamos para no
         # desordenar la lista original (que puede estar ordenada por fecha, no por nombre).
 
-        # Hacemos una copia ordenada por nombre, sin tocar el orden original de la lista
         lista_ordenada = sorted(self.lista_cultivos, key=lambda c: c.nombre.lower())
 
-        nombre_buscado = nombre_buscado.lower()
+        nombre_buscado = nombre_buscado.lower().strip()
         inicio = 0
         fin = len(lista_ordenada) - 1
 
@@ -140,14 +138,8 @@ class GestorCultivos:
         # La idea es parecida a cómo ordenas cartas en la mano:
         # tomas una carta y la vas metiendo en el lugar correcto entre las que ya tenías ordenadas.
         #
-        # Recorremos la lista desde el segundo elemento en adelante.
-        # Cada cultivo lo comparamos con los que están ANTES de él (ya ordenados),
-        # y lo vamos "empujando" hacia atrás hasta encontrar su lugar correcto por fecha.
-        #
-        # Complejidad temporal: O(n²) en el peor caso (lista al revés),
-        # porque por cada elemento puede que tengamos que compararlo con todos los anteriores.
-        # Complejidad espacial: O(1), porque ordenamos "en el mismo lugar",
-        # sin crear una lista nueva ni usar memoria extra.
+        # Complejidad temporal: O(n²) en el peor caso (lista al revés).
+        # Complejidad espacial: O(1), porque ordenamos "en el mismo lugar".
 
         for i in range(1, len(self.lista_cultivos)):
             actual = self.lista_cultivos[i]
@@ -186,16 +178,16 @@ class GestorCultivos:
                 localidad=datos["localidad"],
                 numero_parcela=datos["numero_parcela"],
                 tamano_parcela=datos["tamano_parcela"],
-                fecha_siembra=datos["fecha_siembra"],
+                # Si la fecha vieja venía sin cero (2025-09-6), aquí se corrige
+                fecha_siembra=normalizar_fecha_segura(datos["fecha_siembra"]),
                 estado=datos["estado"]
             )
             self.lista_cultivos.append(cultivo)
-            self.tabla_hash_codigos.insertar(cultivo.codigo, cultivo)  # también lo agregamos a la tabla hash
+            self.tabla_hash_codigos.insertar(cultivo.codigo, cultivo)
 
         # El contador se calcula según el NÚMERO más alto que ya se haya usado,
         # no según cuántos cultivos hay ahora. Esto evita que se repita un código
-        # si alguna vez se elimina un cultivo (ej. si se borra CULT002 y solo queda
-        # CULT001, el próximo código debe ser CULT003, no CULT002 de nuevo).
+        # si alguna vez se elimina un cultivo.
         numero_mas_alto = 0
         for cultivo in self.lista_cultivos:
             numero = int(cultivo.codigo.replace("CULT", ""))

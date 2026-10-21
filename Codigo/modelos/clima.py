@@ -5,7 +5,10 @@
 
 import requests
 import time
-from modelos.ordenamiento_clima import merge_sort
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "algoritmos"))
+from ordenamiento_clima import merge_sort
 
 
 

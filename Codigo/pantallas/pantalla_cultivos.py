@@ -21,6 +21,7 @@ sys.path.append(
 
 from cultivo import Cultivo
 from gestor_cultivos import GestorCultivos
+from fechas import normalizar_fecha
 
 COLOR_FONDO = (0.10, 0.11, 0.14, 1)
 
@@ -825,6 +826,10 @@ class PantallaCultivos(ScrollView):
         parcela = self.campo_parcela.text.strip()
         tamano = self.campo_tamano.text.strip()
         fecha = self.campo_fecha.text.strip()
+        try:
+            fecha = normalizar_fecha(fecha)
+        except ValueError:
+            pass  # si es inválida, más abajo sale el mensaje de error de siempre
 
         if not all([
             nombre,
