@@ -159,42 +159,58 @@ class GestorCultivos:
 
     def guardar_datos(self):
         lista_como_diccionarios = [cultivo.__dict__ for cultivo in self.lista_cultivos]
-        with open(ARCHIVO_DATOS, "w", encoding="utf-8") as archivo:
-            json.dump(lista_como_diccionarios, archivo, ensure_ascii=False, indent=2)
+        try:
+            with open(ARCHIVO_DATOS, "w", encoding="utf-8") as archivo:
+                json.dump(lista_como_diccionarios, archivo, ensure_ascii=False, indent=2)
+        except OSError:
+            print("No se pudo guardar el archivo de cultivos.")
 
     def cargar_datos(self):
         if not os.path.exists(ARCHIVO_DATOS):
             return
 
-        with open(ARCHIVO_DATOS, "r", encoding="utf-8") as archivo:
-            lista_como_diccionarios = json.load(archivo)
+        try:
+            with open(ARCHIVO_DATOS, "r", encoding="utf-8") as archivo:
+                lista_como_diccionarios = json.load(archivo)
+        except (OSError, json.JSONDecodeError):
+            # Se guarda una copia del archivo dañado para no perder los datos
+            print("No se pudo leer el archivo de cultivos. Se empieza con la lista vacía.")
+            try:
+                os.replace(ARCHIVO_DATOS, ARCHIVO_DATOS + ".bak")
+            except OSError:
+                pass
+            return
 
         for datos in lista_como_diccionarios:
-            cultivo = Cultivo(
-                codigo=datos["codigo"],
-                nombre=datos["nombre"],
-                tipo=datos["tipo"],
-                tipo_tierra=datos["tipo_tierra"],
-                localidad=datos["localidad"],
-                numero_parcela=datos["numero_parcela"],
-                tamano_parcela=datos["tamano_parcela"],
-                # Si la fecha vieja venía sin cero (2025-09-6), aquí se corrige
-                fecha_siembra=normalizar_fecha_segura(datos["fecha_siembra"]),
-                estado=datos["estado"]
-            )
+            try:
+                cultivo = Cultivo(
+                    codigo=datos["codigo"],
+                    nombre=datos["nombre"],
+                    tipo=datos["tipo"],
+                    tipo_tierra=datos["tipo_tierra"],
+                    localidad=datos["localidad"],
+                    numero_parcela=datos["numero_parcela"],
+                    tamano_parcela=datos["tamano_parcela"],
+                    # Si la fecha vieja venía sin cero (2025-09-6), aquí se corrige
+                    fecha_siembra=normalizar_fecha_segura(datos["fecha_siembra"]),
+                    estado=datos["estado"]
+                )
+            except (KeyError, TypeError):
+                continue  # se salta un registro incompleto
+
             self.lista_cultivos.append(cultivo)
             self.tabla_hash_codigos.insertar(cultivo.codigo, cultivo)
 
-        # El contador se calcula según el NÚMERO más alto que ya se haya usado,
-        # no según cuántos cultivos hay ahora. Esto evita que se repita un código
-        # si alguna vez se elimina un cultivo.
+        # El contador sigue el NÚMERO más alto ya usado, para no repetir códigos
         numero_mas_alto = 0
         for cultivo in self.lista_cultivos:
-            numero = int(cultivo.codigo.replace("CULT", ""))
+            try:
+                numero = int(cultivo.codigo.replace("CULT", ""))
+            except ValueError:
+                continue
             if numero > numero_mas_alto:
                 numero_mas_alto = numero
         self.contador = numero_mas_alto
-
 
 # --- Zona de prueba ---
 if __name__ == "__main__":

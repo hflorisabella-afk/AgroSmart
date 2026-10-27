@@ -13,14 +13,19 @@ from datetime import datetime, date
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CARPETA, "..", "estructuras"))
 sys.path.append(os.path.join(CARPETA, "..", "algoritmos"))
+sys.path.append(os.path.join(CARPETA, "..", "modelos"))
 
+from unidades import texto_terreno  # se reexporta: la pantalla lo importa de aquí
 from cola import Cola
 from lista_enlazada import ListaEnlazada
 from grafo import Grafo
-from dijkstra import ruta_mas_corta
+from dijkstra import dijkstra, ruta_mas_corta
 from voraz_agua import ItemAgua, repartir_agua as algoritmo_voraz
 
 ARCHIVO = os.path.join(CARPETA, "datos_optimizacion.json")
+
+# Punto de partida del recorrido (la casa del agricultor)
+PUNTO_INICIO = "CASA"
 
 
 # ============================================================
@@ -110,9 +115,9 @@ class Planificador:
     def __init__(self):
         self.cola = Cola()                  # riegos pendientes (el primero en llegar es el primero en regarse)
         self.historial = ListaEnlazada()    # riegos ya hechos (el más nuevo primero)
-        self.grafo = Grafo()                # conexiones (tuberías/canales) entre el tanque y las parcelas
-        self.grafo.agregar_nodo("TANQUE")
-        self.canales = []                   # lista de {"desde", "hasta", "metros"}
+        self.grafo = Grafo()                # distancias entre la casa y las parcelas
+        self.grafo.agregar_nodo(PUNTO_INICIO)
+        self.canales = []                   # lista de {"desde", "hasta", "km"}
         self.cargar()
 
     # ---------------- guardar y cargar ----------------
@@ -132,7 +137,9 @@ class Planificador:
             self.historial.agregar_al_final(registro)
         for canal in datos.get("canales", []):
             try:
-                self._poner_canal(canal["desde"], canal["hasta"], float(canal["metros"]))
+                desde = PUNTO_INICIO if canal["desde"] == "TANQUE" else canal["desde"]
+                hasta = PUNTO_INICIO if canal["hasta"] == "TANQUE" else canal["hasta"]
+                self._poner_canal(desde, hasta, float(canal["km"]))
             except (KeyError, ValueError):
                 pass
 
@@ -245,29 +252,53 @@ class Planificador:
 
         return f"Último riego hace {dias} día(s). Próximo riego en {faltan} día(s).", "bien"
 
-    # ---------------- conexiones del agua (grafo) ----------------
+    # ---------------- distancias entre lugares (grafo) ----------------
 
-    def _poner_canal(self, desde, hasta, metros):
-        # Si ya existía una conexión entre esos dos puntos, se reemplaza
+    def _poner_canal(self, desde, hasta, km):
+        # Si ya existía una distancia entre esos dos puntos, se reemplaza
         self.canales = [
             c for c in self.canales
             if {c["desde"], c["hasta"]} != {desde, hasta}
         ]
-        self.canales.append({"desde": desde, "hasta": hasta, "metros": metros})
-        self.grafo.agregar_arista(desde, hasta, metros)
+        self.canales.append({"desde": desde, "hasta": hasta, "km": km})
+        self.grafo.agregar_arista(desde, hasta, km)
 
-    def agregar_canal(self, desde, hasta, metros):
-        self._poner_canal(desde, hasta, metros)
+    def agregar_canal(self, desde, hasta, km):
+        self._poner_canal(desde, hasta, km)
         self.guardar()
 
     def borrar_canales(self):
         self.canales = []
         self.grafo = Grafo()
-        self.grafo.agregar_nodo("TANQUE")
+        self.grafo.agregar_nodo(PUNTO_INICIO)
         self.guardar()
 
     def ruta_mas_corta(self, destino):
-        return ruta_mas_corta(self.grafo, "TANQUE", destino)
+        return ruta_mas_corta(self.grafo, PUNTO_INICIO, destino)
+
+    def orden_de_visita(self, codigos):
+        # Algoritmo voraz: desde donde estás, ve siempre a la parcela
+        # pendiente más cercana. Devuelve (orden, km_totales, sin_camino).
+        actual = PUNTO_INICIO
+        faltan = list(codigos)
+        orden = []
+        total = 0
+
+        while faltan and self.grafo.existe(actual):
+            distancias, _ = dijkstra(self.grafo, actual)
+            alcanzables = [
+                c for c in faltan
+                if self.grafo.existe(c) and distancias[c] != float("inf")
+            ]
+            if not alcanzables:
+                break
+            siguiente = min(alcanzables, key=lambda c: distancias[c])
+            total += distancias[siguiente]
+            orden.append(siguiente)
+            faltan.remove(siguiente)
+            actual = siguiente
+
+        return orden, total, faltan
 
     # ---------------- reparto de agua (algoritmo voraz) ----------------
 

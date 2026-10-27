@@ -40,7 +40,6 @@ import pantalla_clima
 import pantalla_riego
 import pantalla_calendario
 import pantalla_inventario
-import pantalla_optimizacion
 
 
 # ============================================================
@@ -112,9 +111,6 @@ class PantallaPrincipal(BoxLayout):
 
             ("inventario", "Inventario", pantalla_inventario,
              "PantallaInventario", pantalla_inventario.COLOR_AMARILLO_PRINCIPAL),
-
-            ("optimizar", "Optimizar", pantalla_optimizacion,
-             "PantallaOptimizacion", pantalla_optimizacion.COLOR_NARANJA_PRINCIPAL),
         ]
 
         # ====================================================

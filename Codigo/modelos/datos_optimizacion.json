@@ -1,0 +1,22 @@
+{
+  "cola": [
+    "CULT003"
+  ],
+  "historial": [
+    {
+      "codigo": "CULT004",
+      "momento": "2026-10-26 18:27"
+    },
+    {
+      "codigo": "CULT001",
+      "momento": "2026-10-21 14:09"
+    }
+  ],
+  "canales": [
+    {
+      "desde": "CASA",
+      "hasta": "CULT003",
+      "km": 5.0
+    }
+  ]
+}

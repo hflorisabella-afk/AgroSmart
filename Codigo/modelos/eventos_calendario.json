@@ -1,0 +1,51 @@
+[
+    {
+        "codigo": "EVT001",
+        "codigo_cultivo": "CULT004",
+        "tipo": "cosecha",
+        "fecha": "2026-10-08",
+        "descripcion": "ver que no se haya arruiunado"
+    },
+    {
+        "codigo": "EVT002",
+        "codigo_cultivo": "CULT001",
+        "tipo": "Fertilización",
+        "fecha": "2026-09-15",
+        "descripcion": "que ocupa"
+    },
+    {
+        "codigo": "EVT003",
+        "codigo_cultivo": "CULT004",
+        "tipo": "Fertilización",
+        "fecha": "2026-09-20",
+        "descripcion": "agregar fertilizante"
+    },
+    {
+        "codigo": "EVT001",
+        "codigo_cultivo": "CULT001",
+        "tipo": "Fertilización",
+        "fecha": "2026-09-01",
+        "descripcion": "Aplicar fertilizante NPK"
+    },
+    {
+        "codigo": "EVT002",
+        "codigo_cultivo": "CULT001",
+        "tipo": "Riego",
+        "fecha": "2026-09-20",
+        "descripcion": "Riego por goteo programado"
+    },
+    {
+        "codigo": "EVT001",
+        "codigo_cultivo": "CULT001",
+        "tipo": "Fertilización",
+        "fecha": "2026-09-01",
+        "descripcion": "Aplicar fertilizante NPK"
+    },
+    {
+        "codigo": "EVT002",
+        "codigo_cultivo": "CULT001",
+        "tipo": "Riego",
+        "fecha": "2026-09-20",
+        "descripcion": "Riego por goteo programado"
+    }
+]
